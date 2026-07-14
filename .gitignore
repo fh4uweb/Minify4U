@@ -1,0 +1,19 @@
+# Node / Build-Output
+node_modules/
+out/
+dist/
+*.vsix
+.vscode-test/
+
+# Lokales F5-Test-Fixture (nicht versionieren)
+test-workspace/
+
+# Intern – NICHT ins öffentliche Repo (bleiben lokal auf der Platte)
+CLAUDE.md
+_CHANGELOG-MINIFY4U.md
+
+# 4u-Konvention: lokales Material – weder Git noch Deploy (nur .gitkeep getrackt)
+**/INBOX/*
+!**/INBOX/.gitkeep
+**/UNUSED/*
+!**/UNUSED/.gitkeep

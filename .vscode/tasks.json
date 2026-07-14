@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "compile",
+      "problemMatcher": [],
+      "label": "npm: compile",
+      "detail": "esbuild – Bundle nach dist/"
+    },
+    {
+      "type": "npm",
+      "script": "watch",
+      "problemMatcher": [],
+      "label": "npm: watch",
+      "isBackground": true,
+      "detail": "esbuild Watch-Modus"
+    }
+  ]
+}

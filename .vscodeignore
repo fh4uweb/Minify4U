@@ -1,0 +1,16 @@
+.vscode/**
+.vscode-test/**
+src/**
+out/**
+test-workspace/**
+.gitignore
+.git/**
+esbuild.js
+tsconfig.json
+**/*.map
+**/*.ts
+_CHANGELOG-MINIFY4U.md
+CLAUDE.md
+
+# node_modules NICHT ignorieren: sass/less/html-minifier-terser/jsonc-parser sind
+# external und müssen mit ausgeliefert werden. vsce entfernt devDependencies selbst.
