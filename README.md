@@ -1,27 +1,40 @@
 # Minify4U
 
-VS-Code-Extension, die Quelldateien **beim Speichern** minifiziert und den Output an einen
-**je Dateityp/Glob frei konfigurierbaren Pfad** schreibt.
+[**English**](README.md) · [Deutsch](README.de.md)
 
-Damit schließt Minify4U die Lücke von *MinifyAll* (schreibt nur *neben* die Quelle) und
-vereinheitlicht das 4u-Build-Muster `files4u/` → `assets/` über alle Dateitypen.
+A VS Code extension that **minifies source files on save** and writes the output to a
+**path that is freely configurable per file type**.
 
-## Funktionsweise
+Unlike minifiers that only write *next to* the source, Minify4U routes each file type into
+its own output folder — e.g. sources in `src/` compiled and minified into `assets/`.
 
-Bei jedem Speichern bestimmt die Extension die anzuwendende Regel:
+## Supported languages
 
-1. **`minify4u.rules`** – die **erste** passende Regel (per `glob` oder `type`) gewinnt.
-2. Greift keine Regel, wird **`minify4u.output`** (Sprache → Ordner) herangezogen.
+| Language     | Minifier             | Action                | Extension  |
+|--------------|----------------------|-----------------------|------------|
+| JavaScript   | terser               | minify                | `.min.js`  |
+| CSS          | clean-css            | minify                | `.min.css` |
+| SCSS / SASS  | sass                 | **compile** + minify  | `.min.css` |
+| LESS         | less                 | **compile** + minify  | `.min.css` |
+| HTML         | html-minifier-terser | minify                | `.min.html`|
+| JSON / JSONC | jsonc-parser         | minify (compact)      | `.min.json`|
 
-Danach wird die Datei mit dem passenden Minifier minifiziert und nach dem Ziel-Ordner
-(relativ zum Workspace-Root) geschrieben, mit der jeweiligen Endung.
+## How it works
 
-## Konfiguration
+On every save, Minify4U picks the rule to apply:
 
-### Einfach: Ausgabe-Ordner je Sprache
+1. **`minify4u.rules`** — the **first** matching rule (by `glob` or `type`) wins.
+2. If no rule matches, **`minify4u.output`** (language → folder) is used.
 
-Für den Normalfall reicht `minify4u.output` – eine Zuordnung **Sprache → Ordner**.
-Minifier und Endung werden automatisch gewählt:
+The file is then minified with the matching minifier and written to the target folder
+(relative to the workspace root) with the configured extension.
+
+## Configuration
+
+### Simple: output folder per language
+
+For the common case, `minify4u.output` is enough — a map of **language → folder**.
+The minifier and extension are chosen automatically:
 
 ```jsonc
 {
@@ -37,28 +50,28 @@ Minifier und Endung werden automatisch gewählt:
 }
 ```
 
-| Sprach-ID       | Minifier   | Aktion                         | Endung     |
-|-----------------|------------|--------------------------------|------------|
-| `javascript`    | terser     | minifizieren                   | `.min.js`  |
-| `css`           | clean-css  | minifizieren                   | `.min.css` |
-| `scss` / `sass` | sass       | **kompilieren** + minifizieren | `.min.css` |
-| `less`          | less       | **kompilieren** + minifizieren | `.min.css` |
-| `html`          | html       | minifizieren                   | `.min.html`|
-| `json` / `jsonc`| json       | minifizieren (kompakt)         | `.min.json`|
+| Language ID     | Minifier   | Action               | Extension  |
+|-----------------|------------|----------------------|------------|
+| `javascript`    | terser     | minify               | `.min.js`  |
+| `css`           | clean-css  | minify               | `.min.css` |
+| `scss` / `sass` | sass       | **compile** + minify | `.min.css` |
+| `less`          | less       | **compile** + minify | `.min.css` |
+| `html`          | html       | minify               | `.min.html`|
+| `json` / `jsonc`| json       | minify (compact)     | `.min.json`|
 
-> Sprachen ohne Standard-Zuordnung müssen über `minify4u.rules` konfiguriert werden;
-> ansonsten erscheint eine Meldung im Output-Channel „Minify4U".
+> Languages without a built-in mapping must be configured via `minify4u.rules`;
+> otherwise a message appears in the "Minify4U" output channel.
 
-### Fein: Regeln für Globs & Sonderfälle
+### Advanced: rules for globs & special cases
 
-`minify4u.rules` erlaubt Glob-Matching, eigene Endungen und expliziten Minifier. Regeln
-haben **Vorrang** vor `minify4u.output`:
+`minify4u.rules` supports glob matching, custom extensions and an explicit minifier.
+Rules take **precedence** over `minify4u.output`:
 
 ```jsonc
 {
   "minify4u.rules": [
     {
-      "glob": "files4u/js/vendor/**/*.js",
+      "glob": "src/js/vendor/**/*.js",
       "savePath": "assets/js/vendor",
       "suffix": ".min.js",
       "minifier": "terser"
@@ -67,35 +80,35 @@ haben **Vorrang** vor `minify4u.output`:
 }
 ```
 
-| Feld       | Pflicht | Beschreibung |
+| Field      | Required | Description |
 |------------|:------:|--------------|
-| `glob`     | –      | Glob relativ zum Workspace-Root. Alternativ `type`. |
-| `type`     | –      | VS-Code-Sprach-ID (`javascript`, `css`, `scss`, …). Alternativ zu `glob`. |
-| `savePath` | ✓      | Ziel-Ordner relativ zum Workspace-Root. |
-| `suffix`   | ✓      | Output-Endung (ersetzt die Original-Endung). |
-| `minifier` | ✓      | Einer der Werte aus der Minifier-Tabelle unten. |
+| `glob`     | –      | Glob relative to the workspace root. Alternative to `type`. |
+| `type`     | –      | VS Code language ID (`javascript`, `css`, `scss`, …). Alternative to `glob`. |
+| `savePath` | ✓      | Target folder relative to the workspace root. |
+| `suffix`   | ✓      | Output extension (replaces the original extension). |
+| `minifier` | ✓      | One of the values from the minifier table below. |
 
-> Es muss entweder `glob` **oder** `type` gesetzt sein.
+> Either `glob` **or** `type` must be set.
 
-### Minifier-Werte
+### Minifier values
 
-| Wert          | Ergebnis |
+| Value         | Result |
 |---------------|----------|
-| `terser`      | JavaScript minifizieren |
-| `clean-css`   | CSS minifizieren |
-| `sass`        | SCSS/SASS **kompilieren** + minifizieren → CSS |
-| `less`        | LESS **kompilieren** + minifizieren → CSS |
-| `html`        | HTML minifizieren |
-| `json`        | JSON/JSONC minifizieren (kompakt) |
-| `json-pretty` | JSON/JSONC in **lesbare** JSON umwandeln (Kommentare/Trailing-Commas raus, eingerückt) – *nicht* minifiziert |
+| `terser`      | minify JavaScript |
+| `clean-css`   | minify CSS |
+| `sass`        | **compile** + minify SCSS/SASS → CSS |
+| `less`        | **compile** + minify LESS → CSS |
+| `html`        | minify HTML |
+| `json`        | minify JSON/JSONC (compact) |
+| `json-pretty` | convert JSON/JSONC to **readable** JSON (comments/trailing commas removed, indented) — *not* minified |
 
-**Beispiel – JSONC lesbar zu JSON umwandeln (statt minifizieren):**
+**Example — convert JSONC to readable JSON (instead of minifying):**
 
 ```jsonc
 {
   "minify4u.rules": [
     {
-      "glob": "files4u/jsonc/**/*.jsonc",
+      "glob": "config/**/*.jsonc",
       "savePath": "config",
       "suffix": ".json",
       "minifier": "json-pretty"
@@ -104,19 +117,23 @@ haben **Vorrang** vor `minify4u.output`:
 }
 ```
 
-## Entwicklung
+## Development
 
 ```bash
 npm install
 npm run compile      # esbuild → dist/extension.js
-npm run watch        # Watch-Modus
+npm run watch        # watch mode
 npm run typecheck    # tsc --noEmit
 ```
 
-- **Debuggen:** `F5` startet den Extension-Host (nutzt `.vscode/launch.json`).
-- **Paketieren:** `npm run package` (`vsce package`) erzeugt eine `.vsix` zur lokalen Installation.
+- **Debug:** `F5` launches the Extension Host (uses `.vscode/launch.json`).
+- **Package:** `npm run package` (`vsce package`) creates a `.vsix` for local installation.
 
-## Grenzen
+## Limitations
 
-- Output wird **flach** in `savePath` abgelegt (Dateiname der Quelle + `suffix`); die
-  Unterordner-Struktur unter dem Glob wird noch nicht gespiegelt.
+- Output is written **flat** into `savePath` (source basename + `suffix`); the subfolder
+  structure under the glob is not mirrored yet.
+
+## License
+
+[MIT](LICENSE) © Frank Hackenberg (4UWeb)

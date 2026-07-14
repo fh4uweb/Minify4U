@@ -52,7 +52,7 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  output.appendLine("Minify4U aktiviert.");
+  output.appendLine("Minify4U activated.");
 }
 
 export function deactivate(): void {
@@ -113,7 +113,7 @@ function resolveRule(
   const def = LANG_DEFAULTS[doc.languageId];
   if (!def) {
     output.appendLine(
-      `✗ ${doc.languageId}: keine Standard-Minifier-Zuordnung – bitte per "minify4u.rules" mit "minifier"/"suffix" konfigurieren.`
+      `✗ ${doc.languageId}: no default minifier mapping — please configure it via "minify4u.rules" with "minifier"/"suffix".`
     );
     return undefined;
   }
@@ -152,7 +152,7 @@ async function minifyCode(
     case "terser": {
       const result = await terserMinify(code);
       if (result.code === undefined) {
-        throw new Error("Terser lieferte keinen Output.");
+        throw new Error("Terser produced no output.");
       }
       return result.code;
     }
@@ -215,7 +215,7 @@ function minifyJson(code: string, indent: number): string {
   if (errors.length > 0) {
     const e = errors[0];
     throw new Error(
-      `JSON-Parsefehler (${printParseErrorCode(e.error)}) an Offset ${e.offset}.`
+      `JSON parse error (${printParseErrorCode(e.error)}) at offset ${e.offset}.`
     );
   }
   return JSON.stringify(data, null, indent);

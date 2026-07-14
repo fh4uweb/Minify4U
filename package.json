@@ -1,7 +1,7 @@
 {
   "name": "minify4u",
   "displayName": "Minify4U",
-  "description": "Minifiziert Quelldateien (JS/CSS/SCSS/SASS/LESS/HTML/JSON) beim Speichern und schreibt den Output an einen je Dateityp/Glob frei konfigurierbaren Pfad.",
+  "description": "Minify source files (JS/CSS/SCSS/SASS/LESS/HTML/JSON) on save and write the output to a path that is freely configurable per file type.",
   "version": "0.2.0",
   "publisher": "4uweb",
   "license": "MIT",
@@ -40,12 +40,12 @@
         "minify4u.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Minify4U beim Speichern aktivieren."
+          "description": "Enable Minify4U on save."
         },
         "minify4u.output": {
           "type": "object",
           "default": {},
-          "markdownDescription": "Einfache Zuordnung **Sprache → Ausgabe-Ordner** (relativ zum Workspace-Root). Minifier und Endung werden automatisch gewählt:\n\n- `javascript` → terser → `.min.js`\n- `css` → clean-css → `.min.css`\n- `scss` / `sass` → Dart Sass (kompilieren+minifizieren) → `.min.css`\n- `less` → less + clean-css → `.min.css`\n- `html` → html-minifier-terser → `.min.html`\n- `json` / `jsonc` → `.min.json`\n\nFür Sonderfälle (Globs, andere Endung, `json-pretty`) `minify4u.rules` verwenden – die haben Vorrang.",
+          "markdownDescription": "Simple map of **language → output folder** (relative to the workspace root). The minifier and extension are chosen automatically:\n\n- `javascript` → terser → `.min.js`\n- `css` → clean-css → `.min.css`\n- `scss` / `sass` → Dart Sass (compile + minify) → `.min.css`\n- `less` → less + clean-css → `.min.css`\n- `html` → html-minifier-terser → `.min.html`\n- `json` / `jsonc` → `.min.json`\n\nFor special cases (globs, custom extension, `json-pretty`) use `minify4u.rules` — those take precedence.",
           "additionalProperties": {
             "type": "string"
           },
@@ -59,26 +59,26 @@
         "minify4u.rules": {
           "type": "array",
           "default": [],
-          "markdownDescription": "Regeln je Dateityp/Glob. Beim Speichern greift die **erste** passende Regel; greift keine, wird `minify4u.output` je Sprache herangezogen.",
+          "markdownDescription": "Rules per file type/glob. On save the **first** matching rule applies; if none matches, `minify4u.output` is used per language.",
           "items": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
               "glob": {
                 "type": "string",
-                "markdownDescription": "Glob relativ zum Workspace-Root, z. B. `files4u/js/**/*.js`. Alternativ `type` verwenden."
+                "markdownDescription": "Glob relative to the workspace root, e.g. `src/js/**/*.js`. Alternative to `type`."
               },
               "type": {
                 "type": "string",
-                "markdownDescription": "VS-Code-Sprach-ID, z. B. `javascript`, `css`. Alternativ zu `glob`."
+                "markdownDescription": "VS Code language ID, e.g. `javascript`, `css`. Alternative to `glob`."
               },
               "savePath": {
                 "type": "string",
-                "markdownDescription": "Ziel-Ordner relativ zum Workspace-Root, z. B. `assets/js`."
+                "markdownDescription": "Target folder relative to the workspace root, e.g. `assets/js`."
               },
               "suffix": {
                 "type": "string",
-                "markdownDescription": "Dateiendung des Outputs, z. B. `.min.js`. Ersetzt die Original-Endung.",
+                "markdownDescription": "Output file extension, e.g. `.min.js`. Replaces the original extension.",
                 "default": ".min.js"
               },
               "minifier": {
@@ -93,15 +93,15 @@
                   "json-pretty"
                 ],
                 "enumDescriptions": [
-                  "JavaScript minifizieren (Terser).",
-                  "CSS minifizieren (clean-css).",
-                  "SCSS/SASS kompilieren + minifizieren → CSS (Dart Sass, compressed).",
-                  "LESS kompilieren + minifizieren → CSS (less + clean-css).",
-                  "HTML minifizieren (html-minifier-terser).",
-                  "JSON/JSONC minifizieren (Kommentare/Whitespace entfernt, kompakt).",
-                  "JSON/JSONC in lesbare JSON umwandeln (Kommentare/Trailing-Commas entfernt, eingerückt) – nicht minifiziert."
+                  "Minify JavaScript (Terser).",
+                  "Minify CSS (clean-css).",
+                  "Compile + minify SCSS/SASS → CSS (Dart Sass, compressed).",
+                  "Compile + minify LESS → CSS (less + clean-css).",
+                  "Minify HTML (html-minifier-terser).",
+                  "Minify JSON/JSONC (comments/whitespace removed, compact).",
+                  "Convert JSON/JSONC to readable JSON (comments/trailing commas removed, indented) — not minified."
                 ],
-                "markdownDescription": "Minifier: `terser` (JS), `clean-css` (CSS), `sass` (SCSS/SASS→CSS), `less` (LESS→CSS), `html`, `json` (kompakt), `json-pretty` (lesbare JSON, nicht minifiziert)."
+                "markdownDescription": "Minifier: `terser` (JS), `clean-css` (CSS), `sass` (SCSS/SASS→CSS), `less` (LESS→CSS), `html`, `json` (compact), `json-pretty` (readable JSON, not minified)."
               }
             },
             "required": [
