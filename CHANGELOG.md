@@ -4,6 +4,20 @@ All notable changes to Minify4U are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning follows [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Sass partials are understood.** A `_partial.scss` is no longer compiled on its own
+  (which produced a fragment, or an empty file when it only held variables and mixins).
+  Saving one rebuilds the main files that import it, directly or through other partials.
+  The dependencies come from Dart Sass itself (every file it loaded), not from parsing
+  `@use`/`@import`. Main files that do *not* import the partial are left untouched, so an
+  upload-on-save watcher will not redeploy unchanged stylesheets.
+- **`minify4u.exclude`** — globs Minify4U ignores completely, for every language. Default
+  `["**/node_modules/**", "**/.vscode/**"]`. The `.vscode` entry matters: VS Code treats its
+  own `settings.json` as JSONC, so without it every edit to your project configuration wrote
+  a minified copy of it into the JSONC output folder.
+
 ## [0.3.0] – 2026-07-15
 
 > **Breaking:** the `minify4u.output` map was replaced by one setting per language.

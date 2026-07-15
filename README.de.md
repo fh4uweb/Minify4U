@@ -34,6 +34,25 @@ Danach wird die Datei mit dem passenden Minifier minifiziert und nach dem Ziel-O
 Als bereits minifiziert gilt eine Datei, deren Name auf den `suffix` der Regel endet oder
 deren Basename auf `.min` endet. Übersprungene Saves melden sich im Output-Channel „Minify4U".
 
+## Sass-Partials
+
+Ein Partial (`_variables.scss`) ist kein eigenes Stylesheet – einzeln kompiliert käme ein
+Fragment heraus oder gar nichts, wenn er nur Variablen und Mixins definiert. Minify4U
+kompiliert Partials deshalb **nie direkt**. Beim Speichern werden stattdessen die
+Hauptdateien neu gebaut, die ihn importieren – auch **indirekt** über andere Partials.
+
+Die Abhängigkeiten werden nicht aus `@use`/`@import` geraten: Dart Sass meldet jede Datei,
+die es tatsächlich geladen hat, und Minify4U dreht das um. Zwei Details, die man kennen
+sollte:
+
+- **Geschrieben wird nur, was den Partial wirklich importiert.** Alles andere bleibt
+  unangetastet – ein Upload-on-Save-Watcher deployt so keine Stylesheets, die sich gar nicht
+  geändert haben.
+- **Beim ersten Partial-Save nach einem Neustart** sind die Abhängigkeiten noch unbekannt.
+  Minify4U läuft dann vom Partial nach oben bis zum ersten Verzeichnis mit einer
+  Nicht-Partial-Datei und nimmt dessen Teilbaum als Kandidaten – SCSS an anderer Stelle im
+  Projekt (etwa ein Eltern-Theme) wird dabei nie angefasst.
+
 ## Konfiguration
 
 ### Einfach: Ausgabe-Ordner je Sprache
@@ -77,6 +96,22 @@ Jede dieser Einstellungen nimmt einen Ordner-Pfad relativ zum Ordner-Root entgeg
 
 > Sprachen ohne Standard-Zuordnung müssen über `minify4u.rules` konfiguriert werden;
 > ansonsten erscheint eine Meldung im Output-Channel „Minify4U".
+
+### Dateien ausschließen
+
+`minify4u.exclude` nimmt Globs (relativ zum Ordner-Root), die Minify4U komplett ignoriert –
+für alle Sprachen:
+
+```jsonc
+{
+  "minify4u.exclude": ["**/node_modules/**", "**/.vscode/**", "**/vendor/**"]
+}
+```
+
+Default ist `["**/node_modules/**", "**/.vscode/**"]`. Das `.vscode` ist wichtiger, als es
+aussieht: VS Code behandelt seine eigene `settings.json` als JSONC – ohne diesen Eintrag
+würde jede Änderung an der Projektkonfiguration eine minifizierte Kopie davon in den
+JSONC-Ausgabe-Ordner schreiben.
 
 ### Fein: Regeln für Globs & Sonderfälle
 
@@ -176,10 +211,9 @@ npm run typecheck    # tsc --noEmit
 
 - Output wird **flach** in `savePath` abgelegt (Dateiname der Quelle + `suffix`); die
   Unterordner-Struktur unter dem Glob wird noch nicht gespiegelt.
-- Noch keine Exclude-Globs – die Auswahl läuft allein über `glob`/`type`.
-- SCSS-Partials (`_*.scss`) werden wie jede andere Datei kompiliert; es gibt keine
-  Abhängigkeits-Verfolgung, die die importierenden Hauptdateien neu baut. Keine Source Maps,
-  kein Autoprefixer.
+- Noch keine Source Maps und kein Autoprefixer, und die Sass-Ausgabe ist immer komprimiert –
+  eine zusätzliche expandierte `.css` lässt sich nicht erzeugen. Dafür braucht es weiterhin
+  einen eigenen Sass-Compiler.
 
 ## Lizenz
 

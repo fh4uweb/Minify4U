@@ -3,6 +3,7 @@
 // an einen je Regel (Glob/Typ) konfigurierbaren Pfad relativ zum Workspace-Root.
 import * as vscode from "vscode";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import { minify as terserMinify } from "terser";
 import CleanCSS from "clean-css";
 import * as sass from "sass";
@@ -27,6 +28,12 @@ interface Rule {
   minifier: Minifier;
 }
 
+interface MinifyResult {
+  code: string;
+  // Only Dart Sass reports this: every file pulled in via @use/@import/@forward.
+  loadedUrls?: string[];
+}
+
 // Standard-Minifier + Endung je Sprache für die einfache `minify4u.output`-Map.
 // SCSS/SASS/LESS werden hier kompiliert + minifiziert (→ .min.css).
 const LANG_DEFAULTS: Record<string, { minifier: Minifier; suffix: string }> = {
@@ -40,7 +47,16 @@ const LANG_DEFAULTS: Record<string, { minifier: Minifier; suffix: string }> = {
   jsonc: { minifier: "json", suffix: ".min.json" }
 };
 
+const SASS_LANGUAGES = ["scss", "sass"];
+const SASS_IN_DIR = "*.{scss,sass}";
+const SASS_IN_TREE = "**/*.{scss,sass}";
+
 let output: vscode.OutputChannel;
+
+// Which files a compiled main file pulled in, reported by Dart Sass itself
+// (CompileResult.loadedUrls) — never guessed from @use/@import. Reversed when a
+// partial is saved to find the main files that have to be rebuilt.
+const sassDeps = new Map<string, Set<string>>();
 
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Minify4U");
@@ -73,9 +89,43 @@ async function handleSave(doc: vscode.TextDocument): Promise<void> {
   // .vscode/settings.json, so the config is read for the saved document.
   const config = vscode.workspace.getConfiguration("minify4u", doc.uri);
 
+  if (isExcluded(config, doc, folder)) {
+    return;
+  }
+
+  // A Sass partial is never a compilation unit of its own — compiling it alone
+  // would emit a fragment (_header.scss → _header.min.css). Rebuild whatever
+  // imports it instead.
+  if (isSassPartial(doc)) {
+    if (!config.get<boolean>("enable", true)) {
+      if (languageOutput(config, doc)) {
+        output.appendLine(
+          `✗ ${path.basename(doc.fileName)}: skipped — Minify4U is disabled (minify4u.enable = false)`
+        );
+      }
+      return;
+    }
+    await rebuildDependents(config, doc, folder);
+    return;
+  }
+
+  await buildDocument(config, doc, folder);
+}
+
+// Compiles/minifies one document and writes the result. `onlyIfImports` is set
+// when rebuilding after a partial was saved: the main file is compiled to learn
+// its dependencies, but only written when it really imports that partial —
+// otherwise an unrelated main would get a fresh mtime on every partial save and
+// an upload-on-save watcher would ship it again.
+async function buildDocument(
+  config: vscode.WorkspaceConfiguration,
+  doc: vscode.TextDocument,
+  folder: vscode.WorkspaceFolder,
+  onlyIfImports?: string
+): Promise<boolean> {
   const rule = resolveRule(config, doc, folder);
   if (!rule) {
-    return;
+    return false;
   }
 
   // Report the disabled state only once a rule would actually have applied,
@@ -85,7 +135,7 @@ async function handleSave(doc: vscode.TextDocument): Promise<void> {
     output.appendLine(
       `✗ ${path.basename(doc.fileName)}: skipped — Minify4U is disabled (minify4u.enable = false)`
     );
-    return;
+    return false;
   }
 
   // Never re-minify an already minified file: it would append the suffix a
@@ -95,19 +145,96 @@ async function handleSave(doc: vscode.TextDocument): Promise<void> {
     output.appendLine(
       `• ${path.basename(doc.fileName)}: skipped — already minified`
     );
-    return;
+    return false;
   }
 
   try {
-    const code = await minifyCode(rule.minifier, doc.getText(), doc.fileName);
+    const result = await minifyCode(rule.minifier, doc.getText(), doc.fileName);
+
+    if (result.loadedUrls) {
+      sassDeps.set(key(doc.fileName), new Set(result.loadedUrls.map(key)));
+    }
+    if (onlyIfImports && !result.loadedUrls?.some((u) => key(u) === onlyIfImports)) {
+      return false;
+    }
+
     const target = resolveTarget(folder, doc, rule);
-    await vscode.workspace.fs.writeFile(target, Buffer.from(code, "utf8"));
+    await vscode.workspace.fs.writeFile(target, Buffer.from(result.code, "utf8"));
     const rel = path.relative(folder.uri.fsPath, target.fsPath);
     output.appendLine(`✓ ${path.basename(doc.fileName)} → ${rel}`);
+    return true;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     output.appendLine(`✗ ${path.basename(doc.fileName)}: ${msg}`);
     void vscode.window.showErrorMessage(`Minify4U: ${msg}`);
+    return false;
+  }
+}
+
+// Rebuilds every main file that imports the saved partial.
+async function rebuildDependents(
+  config: vscode.WorkspaceConfiguration,
+  partial: vscode.TextDocument,
+  folder: vscode.WorkspaceFolder
+): Promise<void> {
+  const name = path.basename(partial.fileName);
+  const partialKey = key(partial.fileName);
+  const candidates = await findCandidateMains(config, partial.fileName, folder);
+
+  if (candidates.length === 0) {
+    output.appendLine(`• ${name}: partial saved — no main file found to rebuild`);
+    return;
+  }
+
+  let built = 0;
+  for (const main of candidates) {
+    // A main already known not to import this partial needs no compile at all.
+    const known = sassDeps.get(key(main));
+    if (known && !known.has(partialKey)) {
+      continue;
+    }
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(main));
+    if (await buildDocument(config, doc, folder, partialKey)) {
+      built++;
+    }
+  }
+
+  if (built === 0) {
+    output.appendLine(`• ${name}: partial saved — no main file imports it`);
+  }
+}
+
+// Cold start: with an empty dependency cache the importing main is unknown, so
+// walk up from the partial to the first directory that holds a non-partial and
+// take that subtree. Keeps the search inside the partial's own Sass tree —
+// unrelated .scss elsewhere in the project (e.g. a parent theme) stays untouched.
+async function findCandidateMains(
+  config: vscode.WorkspaceConfiguration,
+  partialPath: string,
+  folder: vscode.WorkspaceFolder
+): Promise<string[]> {
+  const exclude = excludeGlob(config);
+  const root = key(folder.uri.fsPath);
+  let dir = path.dirname(partialPath);
+
+  for (;;) {
+    const here = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(dir, SASS_IN_DIR),
+      exclude
+    );
+    if (here.some((u) => !isPartialName(u.fsPath))) {
+      const tree = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(dir, SASS_IN_TREE),
+        exclude
+      );
+      return tree.map((u) => u.fsPath).filter((p) => !isPartialName(p));
+    }
+
+    const parent = path.dirname(dir);
+    if (key(dir) === root || parent === dir) {
+      return [];
+    }
+    dir = parent;
   }
 }
 
@@ -148,6 +275,51 @@ function resolveRule(
   };
 }
 
+// Windows paths differ in case and separators depending on who reports them
+// (VS Code, Dart Sass, Node) — compare them through one normal form.
+function key(fileOrPath: string): string {
+  return path.normalize(fileOrPath).toLowerCase();
+}
+
+function isPartialName(fileName: string): boolean {
+  return path.basename(fileName).startsWith("_");
+}
+
+function isSassPartial(doc: vscode.TextDocument): boolean {
+  return SASS_LANGUAGES.includes(doc.languageId) && isPartialName(doc.fileName);
+}
+
+function languageOutput(
+  config: vscode.WorkspaceConfiguration,
+  doc: vscode.TextDocument
+): string {
+  return (config.get<string>(`output.${doc.languageId}`) ?? "").trim();
+}
+
+function excludeGlob(config: vscode.WorkspaceConfiguration): string | null {
+  const globs = config.get<string[]>("exclude", []);
+  if (globs.length === 0) {
+    return null;
+  }
+  return globs.length === 1 ? globs[0] : `{${globs.join(",")}}`;
+}
+
+function isExcluded(
+  config: vscode.WorkspaceConfiguration,
+  doc: vscode.TextDocument,
+  folder: vscode.WorkspaceFolder
+): boolean {
+  return config
+    .get<string[]>("exclude", [])
+    .some(
+      (glob) =>
+        vscode.languages.match(
+          { pattern: new vscode.RelativePattern(folder, glob) },
+          doc
+        ) > 0
+    );
+}
+
 // Two checks: the rule's own suffix catches custom ones from `minify4u.rules`
 // (.compressed.js), the generic ".min" catches vendor bundles whose name follows
 // the ecosystem convention even when the active rule uses a different suffix.
@@ -178,7 +350,7 @@ async function minifyCode(
   minifier: Minifier,
   code: string,
   fileName: string
-): Promise<string> {
+): Promise<MinifyResult> {
   const dir = path.dirname(fileName);
 
   switch (minifier) {
@@ -187,20 +359,30 @@ async function minifyCode(
       if (result.code === undefined) {
         throw new Error("Terser produced no output.");
       }
-      return result.code;
+      return { code: result.code };
     }
 
     case "clean-css":
-      return cleanCss(code);
+      return { code: cleanCss(code) };
 
     case "sass": {
-      // .sass = eingerückte Syntax, .scss (Default) = geschweifte Syntax.
-      const syntax = fileName.endsWith(".sass") ? "indented" : "scss";
-      return sass.compileString(code, {
+      // Compiled from disk rather than from the editor buffer: onDidSave means
+      // both are identical, and the file-based API resolves @use/@import against
+      // the real file and reports every loaded file in `loadedUrls`. The indented
+      // .sass syntax is derived from the extension automatically.
+      const result = sass.compile(fileName, {
         style: "compressed",
-        syntax,
         loadPaths: [dir]
-      }).css;
+      });
+      return {
+        code: result.css,
+        // fileURLToPath throws on anything but file:. Dart Sass does not report
+        // built-in modules such as `sass:math` here, but a custom importer could
+        // hand back another scheme.
+        loadedUrls: result.loadedUrls
+          .filter((url) => url.protocol === "file:")
+          .map((url) => fileURLToPath(url))
+      };
     }
 
     case "less": {
@@ -208,23 +390,25 @@ async function minifyCode(
         filename: fileName,
         paths: [dir]
       });
-      return cleanCss(rendered.css);
+      return { code: cleanCss(rendered.css) };
     }
 
     case "html":
-      return htmlMinify(code, {
-        collapseWhitespace: true,
-        removeComments: true,
-        removeRedundantAttributes: true,
-        minifyCSS: true,
-        minifyJS: true
-      });
+      return {
+        code: await htmlMinify(code, {
+          collapseWhitespace: true,
+          removeComments: true,
+          removeRedundantAttributes: true,
+          minifyCSS: true,
+          minifyJS: true
+        })
+      };
 
     case "json":
-      return minifyJson(code, 0);
+      return { code: minifyJson(code, 0) };
 
     case "json-pretty":
-      return minifyJson(code, 2);
+      return { code: minifyJson(code, 2) };
 
     default: {
       const exhaustive: never = minifier;

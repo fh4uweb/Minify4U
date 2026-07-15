@@ -91,6 +91,18 @@
           "markdownDescription": "Output folder for **JSONC** (JSON with comments; comments are removed), relative to the folder root.\n\nExample: `assets/json` — saving `src/config.jsonc` writes `assets/json/config.min.json`.\n\n`*` = write next to the source file · empty = disabled",
           "scope": "resource"
         },
+        "minify4u.exclude": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/.vscode/**"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Globs (relative to the folder root) that Minify4U ignores completely — saving a file that matches produces no output.\n\nApplies to every language and also keeps these files out of the search for Sass main files.\n\nThe default keeps dependencies and VS Code's own config out: without `**/.vscode/**`, editing `settings.json` (which VS Code treats as JSONC) would write a minified copy of your project config into the JSONC output folder.\n\nExample: `**/vendor/**`",
+          "scope": "resource"
+        },
         "minify4u.rules": {
           "type": "array",
           "default": [],

@@ -34,6 +34,23 @@ The file is then minified with the matching minifier and written to the target f
 as already minified when its name ends with the rule's `suffix`, or when its base name ends
 with `.min`. Skipped saves are reported in the "Minify4U" output channel.
 
+## Sass partials
+
+A partial (`_variables.scss`) is not a stylesheet of its own — compiling it alone would emit
+a fragment, or nothing at all when it only defines variables and mixins. Minify4U therefore
+**never compiles a partial directly**. Saving one rebuilds the main files that import it —
+including indirectly, through other partials.
+
+The dependencies are not guessed from `@use`/`@import`: Dart Sass reports every file it
+actually loaded, and Minify4U reverses that. Two details worth knowing:
+
+- **Only main files that really import the partial are written.** Others are left untouched,
+  so an upload-on-save watcher does not redeploy stylesheets that did not change.
+- **On the first partial save after a restart** the dependencies are still unknown. Minify4U
+  then walks up from the partial to the first directory containing a non-partial and treats
+  that subtree as the candidates — so `.scss` elsewhere in the project (a parent theme, say)
+  is never touched.
+
 ## Configuration
 
 ### Simple: output folder per language
@@ -77,6 +94,22 @@ Each of these settings takes a folder path relative to the folder root:
 
 > Languages without a built-in mapping must be configured via `minify4u.rules`;
 > otherwise a message appears in the "Minify4U" output channel.
+
+### Excluding files
+
+`minify4u.exclude` takes globs (relative to the folder root) that Minify4U ignores
+completely, for every language:
+
+```jsonc
+{
+  "minify4u.exclude": ["**/node_modules/**", "**/.vscode/**", "**/vendor/**"]
+}
+```
+
+The default is `["**/node_modules/**", "**/.vscode/**"]`. Keeping `.vscode` out matters more
+than it looks: VS Code treats its own `settings.json` as JSONC, so without that entry every
+edit to your project configuration would write a minified copy of it into your JSONC output
+folder.
 
 ### Advanced: rules for globs & special cases
 
@@ -174,9 +207,9 @@ npm run typecheck    # tsc --noEmit
 
 - Output is written **flat** into `savePath` (source basename + `suffix`); the subfolder
   structure under the glob is not mirrored yet.
-- No exclude globs yet — files are selected by `glob`/`type` only.
-- SCSS partials (`_*.scss`) are compiled like any other file; there is no dependency
-  tracking that rebuilds the main files importing them. No source maps, no autoprefixer.
+- No source maps and no autoprefixer yet, and Sass output is always compressed — there is no
+  way to emit an additional expanded `.css`. A dedicated Sass compiler is still needed for
+  those.
 
 ## License
 
