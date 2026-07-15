@@ -2,7 +2,8 @@
 .vscode-test/**
 src/**
 out/**
-test-workspace/**
+test-workspace*/**
+*.code-workspace
 .gitignore
 .git/**
 esbuild.js
