@@ -6,7 +6,7 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "${workspaceFolder}/test-workspace",
+        "${workspaceFolder}/minify4u-test.code-workspace",
         "--extensionDevelopmentPath=${workspaceFolder}",
         "--disable-extensions"
       ],

@@ -5,8 +5,10 @@ dist/
 *.vsix
 .vscode-test/
 
-# Lokales F5-Test-Fixture (nicht versionieren)
+# Lokale F5-Test-Fixtures (nicht versionieren)
 test-workspace/
+test-workspace-b/
+minify4u-test.code-workspace
 
 # Intern – NICHT ins öffentliche Repo (bleiben lokal auf der Platte)
 CLAUDE.md

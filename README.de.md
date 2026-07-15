@@ -24,31 +24,56 @@ seinen eigenen Ausgabe-Ordner – z. B. Quellen in `src/` kompiliert und minifiz
 Bei jedem Speichern bestimmt die Extension die anzuwendende Regel:
 
 1. **`minify4u.rules`** – die **erste** passende Regel (per `glob` oder `type`) gewinnt.
-2. Greift keine Regel, wird **`minify4u.output`** (Sprache → Ordner) herangezogen.
+2. Greift keine Regel, wird **`minify4u.output.<sprache>`** herangezogen.
 
 Danach wird die Datei mit dem passenden Minifier minifiziert und nach dem Ziel-Ordner
-(relativ zum Workspace-Root) geschrieben, mit der jeweiligen Endung.
+(relativ zum Ordner-Root) geschrieben, mit der jeweiligen Endung.
+
+**Bereits minifizierte Dateien werden übersprungen.** Aus `app.min.js` entsteht **kein**
+`app.min.min.js`, und Vendor-Bundles, die man nur öffnet und speichert, bleiben unangetastet.
+Als bereits minifiziert gilt eine Datei, deren Name auf den `suffix` der Regel endet oder
+deren Basename auf `.min` endet. Übersprungene Saves melden sich im Output-Channel „Minify4U".
 
 ## Konfiguration
 
 ### Einfach: Ausgabe-Ordner je Sprache
 
-Für den Normalfall reicht `minify4u.output` – eine Zuordnung **Sprache → Ordner**.
-Minifier und Endung werden automatisch gewählt:
+Für den Normalfall reicht **eine Einstellung je Sprache**. Minifier und Endung werden
+automatisch gewählt:
 
 ```jsonc
 {
   "minify4u.enable": true,
-  "minify4u.output": {
-    "javascript": "assets/js",
-    "css": "assets/css",
-    "scss": "assets/css",
-    "less": "assets/css",
-    "html": "assets/html",
-    "json": "assets/json"
-  }
+  "minify4u.output.javascript": "assets/js",
+  "minify4u.output.css": "assets/css",
+  "minify4u.output.scss": "assets/css",
+  "minify4u.output.less": "assets/css",
+  "minify4u.output.html": "assets/html",
+  "minify4u.output.json": "assets/json"
 }
 ```
+
+Jede dieser Einstellungen nimmt einen Ordner-Pfad relativ zum Ordner-Root entgegen:
+
+| Wert        | Bedeutung |
+|-------------|-----------|
+| `assets/js` | Output in diesen Ordner schreiben |
+| `*`         | Output **neben die Quelldatei** schreiben |
+| *(leer)*    | **deaktiviert** – diese Sprache wird ignoriert |
+
+| Einstellung                  | Minifier   | Aktion                    | Endung     |
+|------------------------------|------------|---------------------------|------------|
+| `minify4u.output.javascript` | terser     | minifizieren              | `.min.js`  |
+| `minify4u.output.css`        | clean-css  | minifizieren              | `.min.css` |
+| `minify4u.output.scss`       | sass       | **kompilieren** + minif.  | `.min.css` |
+| `minify4u.output.sass`       | sass       | **kompilieren** + minif.  | `.min.css` |
+| `minify4u.output.less`       | less       | **kompilieren** + minif.  | `.min.css` |
+| `minify4u.output.html`       | html       | minifizieren              | `.min.html`|
+| `minify4u.output.json`       | json       | minifizieren (kompakt)    | `.min.json`|
+| `minify4u.output.jsonc`      | json       | minifizieren (kompakt)    | `.min.json`|
+
+> `minify4u.output.scss` **leer lassen**, wenn ein eigener Sass-Compiler das SCSS schon
+> übernimmt – sonst kompilieren beide dieselbe Datei.
 
 > Sprachen ohne Standard-Zuordnung müssen über `minify4u.rules` konfiguriert werden;
 > ansonsten erscheint eine Meldung im Output-Channel „Minify4U".
@@ -56,7 +81,7 @@ Minifier und Endung werden automatisch gewählt:
 ### Fein: Regeln für Globs & Sonderfälle
 
 `minify4u.rules` erlaubt Glob-Matching, eigene Endungen und expliziten Minifier. Regeln
-haben **Vorrang** vor `minify4u.output`:
+haben **Vorrang** vor `minify4u.output.<sprache>`:
 
 ```jsonc
 {
@@ -73,13 +98,17 @@ haben **Vorrang** vor `minify4u.output`:
 
 | Feld       | Pflicht | Beschreibung |
 |------------|:------:|--------------|
-| `glob`     | –      | Glob relativ zum Workspace-Root. Alternativ `type`. |
+| `glob`     | –      | Glob relativ zum Ordner-Root. Alternativ `type`. |
 | `type`     | –      | VS-Code-Sprach-ID (`javascript`, `css`, `scss`, …). Alternativ zu `glob`. |
-| `savePath` | ✓      | Ziel-Ordner relativ zum Workspace-Root. |
+| `savePath` | ✓      | Ziel-Ordner relativ zum Ordner-Root. `*` schreibt neben die Quelldatei. |
 | `suffix`   | ✓      | Output-Endung (ersetzt die Original-Endung). |
 | `minifier` | ✓      | Einer der Werte aus der Minifier-Tabelle unten. |
 
 > Es muss entweder `glob` **oder** `type` gesetzt sein.
+
+> `minify4u.rules` ist ein Array aus Objekten – dafür kann der VS-Code-Settings-Editor kein
+> Formular rendern. Also „In settings.json bearbeiten" nutzen (dort gibt es Autocomplete
+> für `minifier`).
 
 ### Minifier-Werte
 
@@ -108,6 +137,29 @@ haben **Vorrang** vor `minify4u.output`:
 }
 ```
 
+## Multi-Root-Workspaces
+
+Alle Einstellungen von Minify4U sind **resource-scoped**: die Konfiguration wird für die
+*gespeicherte Datei* gelesen. Damit kann jedes Projekt in einem Multi-Root-Workspace eigene
+Werte nutzen – ein Projekt schreibt nach `assets/js`, das nächste nach `dist/scripts`, ein
+drittes schaltet CSS ganz ab. Dieselbe Einstellung, drei Antworten.
+
+Projektspezifische Werte gehören nach `<projekt>/.vscode/settings.json`. Spezifischer
+schlägt allgemeiner:
+
+| Ebene         | Wo                                 | Priorität |
+|---------------|------------------------------------|-----------|
+| Projekt       | `<projekt>/.vscode/settings.json`  | **höchste** |
+| Arbeitsbereich| `*.code-workspace` → `"settings"`  | |
+| Benutzer      | globale `settings.json`            | |
+| Default       | Vorgabe der Extension              | niedrigste |
+
+> Im Settings-Editor heißt diese Projekt-Ebene **„Ordner"** (engl. „Folder") – sonst sucht
+> man vergeblich. Der Reiter erscheint, sobald der Workspace mehr als einen Root-Ordner hat.
+
+**Achtung bei global gesetztem `"minify4u.enable": false`** – das schaltet Minify4U in
+*jedem* Projekt stumm ab, das nicht selbst `enable: true` setzt.
+
 ## Entwicklung
 
 ```bash
@@ -124,6 +176,10 @@ npm run typecheck    # tsc --noEmit
 
 - Output wird **flach** in `savePath` abgelegt (Dateiname der Quelle + `suffix`); die
   Unterordner-Struktur unter dem Glob wird noch nicht gespiegelt.
+- Noch keine Exclude-Globs – die Auswahl läuft allein über `glob`/`type`.
+- SCSS-Partials (`_*.scss`) werden wie jede andere Datei kompiliert; es gibt keine
+  Abhängigkeits-Verfolgung, die die importierenden Hauptdateien neu baut. Keine Source Maps,
+  kein Autoprefixer.
 
 ## Lizenz
 

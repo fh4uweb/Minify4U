@@ -2,7 +2,7 @@
   "name": "minify4u",
   "displayName": "Minify4U",
   "description": "Minify source files (JS/CSS/SCSS/SASS/LESS/HTML/JSON) on save and write the output to a path that is freely configurable per file type.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "4uweb",
   "license": "MIT",
   "icon": "images/minify4u.png",
@@ -40,33 +40,68 @@
         "minify4u.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Minify4U on save."
+          "description": "Enable Minify4U on save.",
+          "scope": "resource"
         },
-        "minify4u.output": {
-          "type": "object",
-          "default": {},
-          "markdownDescription": "Simple map of **language → output folder** (relative to the workspace root). The minifier and extension are chosen automatically:\n\n- `javascript` → terser → `.min.js`\n- `css` → clean-css → `.min.css`\n- `scss` / `sass` → Dart Sass (compile + minify) → `.min.css`\n- `less` → less + clean-css → `.min.css`\n- `html` → html-minifier-terser → `.min.html`\n- `json` / `jsonc` → `.min.json`\n\nFor special cases (globs, custom extension, `json-pretty`) use `minify4u.rules` — those take precedence.",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "examples": [
-            {
-              "javascript": "assets/js",
-              "css": "assets/css"
-            }
-          ]
+        "minify4u.output.javascript": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **JavaScript** (terser), relative to the folder root.\n\nExample: `assets/js` — saving `src/app.js` writes `assets/js/app.min.js`.\n\n`*` = write next to the source file · empty = disabled",
+          "scope": "resource"
+        },
+        "minify4u.output.css": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **CSS** (clean-css), relative to the folder root.\n\nExample: `assets/css` — saving `src/style.css` writes `assets/css/style.min.css`.\n\n`*` = write next to the source file · empty = disabled",
+          "scope": "resource"
+        },
+        "minify4u.output.scss": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **SCSS** — compiled *and* minified (Dart Sass), relative to the folder root.\n\nExample: `assets/css` — saving `src/style.scss` writes `assets/css/style.min.css`.\n\n`*` = write next to the source file · empty = disabled (leave empty if a dedicated Sass compiler already handles SCSS)",
+          "scope": "resource"
+        },
+        "minify4u.output.sass": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **indented Sass** (`.sass`) — compiled *and* minified (Dart Sass), relative to the folder root.\n\nExample: `assets/css` — saving `src/style.sass` writes `assets/css/style.min.css`.\n\n`*` = write next to the source file · empty = disabled",
+          "scope": "resource"
+        },
+        "minify4u.output.less": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **LESS** — compiled *and* minified, relative to the folder root.\n\nExample: `assets/css` — saving `src/theme.less` writes `assets/css/theme.min.css`.\n\n`*` = write next to the source file · empty = disabled",
+          "scope": "resource"
+        },
+        "minify4u.output.html": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **HTML** (html-minifier-terser), relative to the folder root.\n\nExample: `assets/html` — saving `src/page.html` writes `assets/html/page.min.html`.\n\n`*` = write next to the source file · empty = disabled",
+          "scope": "resource"
+        },
+        "minify4u.output.json": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **JSON** (compact), relative to the folder root.\n\nExample: `assets/json` — saving `src/data.json` writes `assets/json/data.min.json`.\n\n`*` = write next to the source file · empty = disabled",
+          "scope": "resource"
+        },
+        "minify4u.output.jsonc": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **JSONC** (JSON with comments; comments are removed), relative to the folder root.\n\nExample: `assets/json` — saving `src/config.jsonc` writes `assets/json/config.min.json`.\n\n`*` = write next to the source file · empty = disabled",
+          "scope": "resource"
         },
         "minify4u.rules": {
           "type": "array",
           "default": [],
-          "markdownDescription": "Rules per file type/glob. On save the **first** matching rule applies; if none matches, `minify4u.output` is used per language.",
+          "markdownDescription": "Rules per file type/glob. On save the **first** matching rule applies; if none matches, the `minify4u.output.*` setting for that language is used.",
           "items": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
               "glob": {
                 "type": "string",
-                "markdownDescription": "Glob relative to the workspace root, e.g. `src/js/**/*.js`. Alternative to `type`."
+                "markdownDescription": "Glob relative to the folder root, e.g. `src/js/**/*.js`. Alternative to `type`."
               },
               "type": {
                 "type": "string",
@@ -74,7 +109,8 @@
               },
               "savePath": {
                 "type": "string",
-                "markdownDescription": "Target folder relative to the workspace root, e.g. `assets/js`."
+                "minLength": 1,
+                "markdownDescription": "Target folder relative to the folder root, e.g. `assets/js`. Use `*` to write next to the source file."
               },
               "suffix": {
                 "type": "string",
@@ -109,7 +145,8 @@
               "suffix",
               "minifier"
             ]
-          }
+          },
+          "scope": "resource"
         }
       }
     }
