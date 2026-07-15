@@ -19,7 +19,12 @@ versioning follows [SemVer](https://semver.org/).
   off here"* from *"never configured anywhere"*.
 - **A notification when a save produces nothing because Minify4U is switched off** — once per
   folder per session, naming the level that set `enable: false`. Errors already notified;
-  "not configured" and "already minified" stay quiet, since neither means something failed.
+  "not configured" and "already minified" raise no notification, since neither means
+  something failed.
+- **Saving a supported file with no output configured now says so in the output channel** —
+  naming the setting and whether it is empty on purpose or was never set. No notification:
+  "not configured" is the normal state of most files, and interrupting for it on every save
+  would be noise. Only for the languages Minify4U handles, so saving a `.md` stays silent.
 - **Sass partials are understood.** A `_partial.scss` is no longer compiled on its own
   (which produced a fragment, or  an empty file when it only held variables and mixins).
   Saving one rebuilds the main files that import it, directly or through other partials.

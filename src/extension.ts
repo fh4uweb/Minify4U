@@ -174,18 +174,12 @@ async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
         `${name} → ${outcome.rel}  (minify4u.${outcome.setting}, from ${originOf(config, outcome.setting)})`
       );
       break;
-    case "noRule": {
-      const from = originOf(config, outcome.setting);
-      // "Set explicitly to empty here" and "nobody ever configured it" both mean
-      // no output, but only one of them is something the user did on purpose.
+    case "noRule":
       void tell(
         "warn",
-        from === "the default"
-          ? `Nothing to do for "${doc.languageId}" — minify4u.${outcome.setting} is not set anywhere.`
-          : `Nothing to do for "${doc.languageId}" — minify4u.${outcome.setting} is empty, set by ${from}.`
+        `Nothing to do for "${doc.languageId}" — ${noRuleReason(config, outcome.setting)}.`
       );
       break;
-    }
     case "disabled":
       void tell(
         "warn",
@@ -272,14 +266,24 @@ async function handleSave(doc: vscode.TextDocument): Promise<void> {
   const outcome = await buildDocument(config, doc, folder);
   if (outcome.kind === "disabled") {
     warnDisabledOnce(config, folder);
+    return;
+  }
+  // Only for languages Minify4U could handle: every other save (.md, .ts, …)
+  // reports "no rule" too, and logging those would drown the channel in noise
+  // that says nothing but "this file was never meant for me".
+  if (outcome.kind === "noRule" && LANG_DEFAULTS[doc.languageId]) {
+    output.appendLine(
+      `• ${path.basename(doc.fileName)}: nothing to do — ${noRuleReason(config, outcome.setting)}`
+    );
   }
 }
 
 // Saving a file that is fully configured and still produces nothing is the one
 // case worth interrupting for — a line in the output channel is easy to miss,
 // and this exact silence once cost an hour of debugging. Errors already raise
-// their own notification; "no output configured" and "already minified" stay
-// quiet, since neither means something went wrong.
+// their own notification; "no output configured" and "already minified" stay out
+// of the notifications and only reach the channel, since neither means something
+// went wrong.
 //
 // Once per folder per session: enough to learn about it, not enough to nag while
 // working in a project that is switched off on purpose.
@@ -470,6 +474,19 @@ function resolveRule(
 // Which level actually supplied a value. The settings editor shows the effective
 // value but not where it came from — the cause of every "but the field is empty"
 // confusion: an empty field means "this level says nothing", not "off".
+// "Set explicitly to empty here" and "nobody ever configured it" both mean no
+// output, but only one of them is something the user did on purpose. Shared by
+// the notification and the output channel so both can never drift apart.
+function noRuleReason(
+  config: vscode.WorkspaceConfiguration,
+  setting: string
+): string {
+  const from = originOf(config, setting);
+  return from === "the default"
+    ? `minify4u.${setting} is not set anywhere`
+    : `minify4u.${setting} is empty, set by ${from}`;
+}
+
 function originOf(
   config: vscode.WorkspaceConfiguration,
   setting: string
