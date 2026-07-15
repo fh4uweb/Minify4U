@@ -15,7 +15,9 @@ type Minifier =
   | "terser"
   | "clean-css"
   | "sass"
+  | "sass-expanded"
   | "less"
+  | "less-expanded"
   | "html"
   | "json"
   | "json-pretty";
@@ -26,6 +28,11 @@ interface Rule {
   savePath: string;
   suffix: string;
   minifier: Minifier;
+}
+
+interface LangDefault {
+  minifier: Minifier;
+  suffix: string;
 }
 
 interface MinifyResult {
@@ -39,24 +46,38 @@ interface MinifyResult {
 // answer, because a save that does nothing is otherwise indistinguishable from
 // a broken extension.
 type Outcome =
-  | { kind: "written"; rel: string; setting: string }
+  | { kind: "written"; wrote: Written[] }
   | { kind: "noRule"; setting: string }
   | { kind: "disabled" }
   | { kind: "alreadyMinified" }
   | { kind: "notDependent" }
   | { kind: "error"; message: string };
 
-// The rule that applies, plus the setting that decided it ("rules" or
-// "output.<lang>"). `rule` is undefined when nothing applies — `setting` still
-// names what was consulted, which is exactly what the user needs to be told.
+// One written file and the setting that asked for it — kept per file rather than
+// joined into a string, so each one can still name its own origin.
+interface Written {
+  rel: string;
+  setting: string;
+}
+
+// A rule to apply, plus the setting that decided it ("rules", "output.<lang>" or
+// "expanded.<lang>").
+interface Applied {
+  rule: Rule;
+  setting: string;
+}
+
+// What applies to a document: none, one, or both of minified and expanded output.
+// `setting` names what was consulted even when nothing applies — that is exactly
+// what the user needs to be told then.
 interface Resolved {
-  rule: Rule | undefined;
+  applied: Applied[];
   setting: string;
 }
 
 // Standard-Minifier + Endung je Sprache für die einfache `minify4u.output`-Map.
 // SCSS/SASS/LESS werden hier kompiliert + minifiziert (→ .min.css).
-const LANG_DEFAULTS: Record<string, { minifier: Minifier; suffix: string }> = {
+const LANG_DEFAULTS: Record<string, LangDefault> = {
   javascript: { minifier: "terser", suffix: ".min.js" },
   css: { minifier: "clean-css", suffix: ".min.css" },
   scss: { minifier: "sass", suffix: ".min.css" },
@@ -65,6 +86,17 @@ const LANG_DEFAULTS: Record<string, { minifier: Minifier; suffix: string }> = {
   html: { minifier: "html", suffix: ".min.html" },
   json: { minifier: "json", suffix: ".min.json" },
   jsonc: { minifier: "json", suffix: ".min.json" }
+};
+
+// Readable output for `minify4u.expanded.<lang>`, written alongside the minified
+// file (main.scss → main.css *and* main.min.css). Only for languages where
+// compiling and minifying are two different things: "expanded JavaScript" would
+// merely copy the source, and expanded CSS with savePath "*" would overwrite the
+// source with itself. JSON already has this through the "json-pretty" minifier.
+const EXPANDED_DEFAULTS: Record<string, LangDefault> = {
+  scss: { minifier: "sass-expanded", suffix: ".css" },
+  sass: { minifier: "sass-expanded", suffix: ".css" },
+  less: { minifier: "less-expanded", suffix: ".css" }
 };
 
 const SASS_LANGUAGES = ["scss", "sass"];
@@ -171,7 +203,12 @@ async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
     case "written":
       void tell(
         "info",
-        `${name} → ${outcome.rel}  (minify4u.${outcome.setting}, from ${originOf(config, outcome.setting)})`
+        `${name} → ${outcome.wrote
+          .map(
+            (w) =>
+              `${w.rel} (minify4u.${w.setting}, from ${originOf(config, w.setting)})`
+          )
+          .join(" · ")}`
       );
       break;
     case "noRule":
@@ -312,8 +349,8 @@ async function buildDocument(
   folder: vscode.WorkspaceFolder,
   onlyIfImports?: string
 ): Promise<Outcome> {
-  const { rule, setting } = resolveRule(config, doc, folder);
-  if (!rule) {
+  const { applied, setting } = resolveRules(config, doc, folder);
+  if (applied.length === 0) {
     return { kind: "noRule", setting };
   }
 
@@ -329,8 +366,8 @@ async function buildDocument(
 
   // Never re-minify an already minified file: it would append the suffix a
   // second time (app.min.js → app.min.min.js) and rewrite vendor bundles that
-  // were merely opened and saved.
-  if (isAlreadyMinified(doc.fileName, rule.suffix)) {
+  // were merely opened and saved. Any applying suffix is reason enough.
+  if (applied.some((a) => isAlreadyMinified(doc.fileName, a.rule.suffix))) {
     output.appendLine(
       `• ${path.basename(doc.fileName)}: skipped — already minified`
     );
@@ -338,20 +375,28 @@ async function buildDocument(
   }
 
   try {
-    const result = await minifyCode(rule.minifier, doc.getText(), doc.fileName);
+    const wrote: Written[] = [];
 
-    if (result.loadedUrls) {
-      sassDeps.set(key(doc.fileName), new Set(result.loadedUrls.map(key)));
-    }
-    if (onlyIfImports && !result.loadedUrls?.some((u) => key(u) === onlyIfImports)) {
-      return { kind: "notDependent" };
+    for (const a of applied) {
+      const result = await minifyCode(a.rule.minifier, doc.getText(), doc.fileName);
+
+      if (result.loadedUrls) {
+        sassDeps.set(key(doc.fileName), new Set(result.loadedUrls.map(key)));
+      }
+      // Same source, same imports whatever the style — so this decides for every
+      // output at once, before the first of them is written.
+      if (onlyIfImports && !result.loadedUrls?.some((u) => key(u) === onlyIfImports)) {
+        return { kind: "notDependent" };
+      }
+
+      const target = resolveTarget(folder, doc, a.rule);
+      await vscode.workspace.fs.writeFile(target, Buffer.from(result.code, "utf8"));
+      const rel = path.relative(folder.uri.fsPath, target.fsPath);
+      output.appendLine(`✓ ${path.basename(doc.fileName)} → ${rel}`);
+      wrote.push({ rel, setting: a.setting });
     }
 
-    const target = resolveTarget(folder, doc, rule);
-    await vscode.workspace.fs.writeFile(target, Buffer.from(result.code, "utf8"));
-    const rel = path.relative(folder.uri.fsPath, target.fsPath);
-    output.appendLine(`✓ ${path.basename(doc.fileName)} → ${rel}`);
-    return { kind: "written", rel, setting };
+    return { kind: "written", wrote };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     output.appendLine(`✗ ${path.basename(doc.fileName)}: ${msg}`);
@@ -429,10 +474,11 @@ async function findCandidateMains(
   }
 }
 
-// Picks the rule to apply: the first matching `rules` entry (globs/exceptions,
-// they win), otherwise the per-language `output.<lang>` setting. `setting` names
-// whichever one decided, so the outcome can be explained without re-deriving it.
-function resolveRule(
+// Picks what to build: the first matching `rules` entry (globs/exceptions, they
+// win and stay a single output), otherwise the per-language settings — which can
+// ask for both a minified and an expanded file from one source. `setting` names
+// what decided, so the outcome can be explained without re-deriving it.
+function resolveRules(
   config: vscode.WorkspaceConfiguration,
   doc: vscode.TextDocument,
   folder: vscode.WorkspaceFolder
@@ -440,26 +486,50 @@ function resolveRule(
   const rules = config.get<Rule[]>("rules", []);
   const rule = rules.find((r) => matches(r, doc, folder));
   if (rule) {
-    return { rule, setting: "rules" };
+    return { applied: [{ rule, setting: "rules" }], setting: "rules" };
   }
 
   const setting = `output.${doc.languageId}`;
+  const minified = languageRule(config, doc, setting, LANG_DEFAULTS[doc.languageId]);
+  const expanded = languageRule(
+    config,
+    doc,
+    `expanded.${doc.languageId}`,
+    EXPANDED_DEFAULTS[doc.languageId]
+  );
 
-  // Empty = language disabled (e.g. leave "scss" empty to let a dedicated
-  // Sass compiler handle it instead).
-  const savePath = config.get<string>(setting)?.trim();
-  if (!savePath) {
-    return { rule: undefined, setting };
-  }
-
-  const def = LANG_DEFAULTS[doc.languageId];
-  if (!def) {
+  // Configured, but Minify4U has no idea what to run on it. Only worth saying for
+  // the minified path: `expanded.<lang>` exists for three languages by design.
+  if (
+    !minified &&
+    !LANG_DEFAULTS[doc.languageId] &&
+    config.get<string>(setting)?.trim()
+  ) {
     output.appendLine(
       `✗ ${doc.languageId}: no default minifier mapping — please configure it via "minify4u.rules" with "minifier"/"suffix".`
     );
-    return { rule: undefined, setting };
   }
 
+  // Either one alone is a complete setup: expanded-only replaces a dedicated Sass
+  // compiler that just writes main.css, minified-only is the classic build.
+  const applied = [minified, expanded].filter((a): a is Applied => a !== undefined);
+  return { applied, setting };
+}
+
+// One per-language setting → one rule, or nothing when the language is switched
+// off (empty) or has no default for this kind of output.
+function languageRule(
+  config: vscode.WorkspaceConfiguration,
+  doc: vscode.TextDocument,
+  setting: string,
+  def: LangDefault | undefined
+): Applied | undefined {
+  // Empty = this output is disabled (e.g. leave "scss" empty to let a dedicated
+  // Sass compiler handle it instead).
+  const savePath = config.get<string>(setting)?.trim();
+  if (!savePath || !def) {
+    return undefined;
+  }
   return {
     rule: {
       type: doc.languageId,
@@ -518,11 +588,15 @@ function isSassPartial(doc: vscode.TextDocument): boolean {
   return SASS_LANGUAGES.includes(doc.languageId) && isPartialName(doc.fileName);
 }
 
+// Would this language write anything here at all — minified, expanded, or both?
+// Either one alone means a save was meant to produce something.
 function languageOutput(
   config: vscode.WorkspaceConfiguration,
   doc: vscode.TextDocument
-): string {
-  return (config.get<string>(`output.${doc.languageId}`) ?? "").trim();
+): boolean {
+  const set = (setting: string): boolean =>
+    (config.get<string>(setting) ?? "").trim().length > 0;
+  return set(`output.${doc.languageId}`) || set(`expanded.${doc.languageId}`);
 }
 
 function excludeGlob(config: vscode.WorkspaceConfiguration): string | null {
@@ -594,13 +668,14 @@ async function minifyCode(
     case "clean-css":
       return { code: cleanCss(code) };
 
-    case "sass": {
+    case "sass":
+    case "sass-expanded": {
       // Compiled from disk rather than from the editor buffer: onDidSave means
       // both are identical, and the file-based API resolves @use/@import against
       // the real file and reports every loaded file in `loadedUrls`. The indented
       // .sass syntax is derived from the extension automatically.
       const result = sass.compile(fileName, {
-        style: "compressed",
+        style: minifier === "sass" ? "compressed" : "expanded",
         loadPaths: [dir]
       });
       return {
@@ -614,12 +689,17 @@ async function minifyCode(
       };
     }
 
-    case "less": {
+    case "less":
+    case "less-expanded": {
       const rendered = await less.render(code, {
         filename: fileName,
         paths: [dir]
       });
-      return { code: cleanCss(rendered.css) };
+      // Less has no "style" option — it always renders readable CSS, and the
+      // minified variant is that output run through clean-css.
+      return {
+        code: minifier === "less" ? cleanCss(rendered.css) : rendered.css
+      };
     }
 
     case "html":

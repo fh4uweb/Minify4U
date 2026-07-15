@@ -114,6 +114,24 @@
           "markdownDescription": "Output folder for **JSONC** (JSON with comments; comments are removed), relative to the folder root.\n\nExample: `assets/json` — saving `src/config.jsonc` writes `assets/json/config.min.json`.\n\n`*` = write next to the source file · empty = disabled",
           "scope": "resource"
         },
+        "minify4u.expanded.scss": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **readable, non-minified CSS** compiled from SCSS, relative to the folder root.\n\nIndependent of `minify4u.output.scss`: set both to get `style.css` *and* `style.min.css` from one save, or only this one to replace a dedicated Sass compiler that just writes plain CSS.\n\nExample: `assets/css` — saving `src/style.scss` writes `assets/css/style.css`.\n\n`*` = write next to the source file · empty = no expanded output",
+          "scope": "resource"
+        },
+        "minify4u.expanded.sass": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **readable, non-minified CSS** compiled from indented Sass (`.sass`), relative to the folder root.\n\nIndependent of `minify4u.output.sass` — see `minify4u.expanded.scss`.\n\nExample: `assets/css` — saving `src/style.sass` writes `assets/css/style.css`.\n\n`*` = write next to the source file · empty = no expanded output",
+          "scope": "resource"
+        },
+        "minify4u.expanded.less": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Output folder for **readable, non-minified CSS** compiled from LESS, relative to the folder root.\n\nIndependent of `minify4u.output.less` — see `minify4u.expanded.scss`.\n\nExample: `assets/css` — saving `src/theme.less` writes `assets/css/theme.css`.\n\n`*` = write next to the source file · empty = no expanded output",
+          "scope": "resource"
+        },
         "minify4u.exclude": {
           "type": "array",
           "default": [
@@ -158,7 +176,9 @@
                   "terser",
                   "clean-css",
                   "sass",
+                  "sass-expanded",
                   "less",
+                  "less-expanded",
                   "html",
                   "json",
                   "json-pretty"
@@ -167,12 +187,14 @@
                   "Minify JavaScript (Terser).",
                   "Minify CSS (clean-css).",
                   "Compile + minify SCSS/SASS → CSS (Dart Sass, compressed).",
+                  "Compile SCSS/SASS → readable CSS (Dart Sass, expanded) — not minified.",
                   "Compile + minify LESS → CSS (less + clean-css).",
+                  "Compile LESS → readable CSS — not minified.",
                   "Minify HTML (html-minifier-terser).",
                   "Minify JSON/JSONC (comments/whitespace removed, compact).",
                   "Convert JSON/JSONC to readable JSON (comments/trailing commas removed, indented) — not minified."
                 ],
-                "markdownDescription": "Minifier: `terser` (JS), `clean-css` (CSS), `sass` (SCSS/SASS→CSS), `less` (LESS→CSS), `html`, `json` (compact), `json-pretty` (readable JSON, not minified)."
+                "markdownDescription": "Minifier: `terser` (JS), `clean-css` (CSS), `sass` (SCSS/SASS→CSS), `sass-expanded` (readable CSS), `less` (LESS→CSS), `less-expanded` (readable CSS), `html`, `json` (compact), `json-pretty` (readable JSON, not minified)."
               }
             },
             "required": [

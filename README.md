@@ -24,7 +24,8 @@ its own output folder — e.g. sources in `src/` compiled and minified into `ass
 On every save, Minify4U picks the rule to apply:
 
 1. **`minify4u.rules`** — the **first** matching rule (by `glob` or `type`) wins.
-2. If no rule matches, **`minify4u.output.<language>`** is used.
+2. If no rule matches, **`minify4u.output.<language>`** is used — plus
+   **`minify4u.expanded.<language>`** for SCSS/Sass/LESS, see below.
 
 The file is then minified with the matching minifier and written to the target folder
 (relative to the folder root) with the configured extension.
@@ -50,6 +51,34 @@ It runs the same pipeline on the active file and **always** answers, as a notifi
 - `app.min.js is already minified — skipped.`
 
 Errors always surface as a notification, on save as well.
+
+## Readable CSS next to the minified file
+
+Some setups load plain, non-minified CSS — a theme's `functions.php` enqueuing
+`assets/css/main.css`, for instance. `minify4u.expanded.<language>` writes exactly that,
+for **SCSS, Sass and LESS**:
+
+```jsonc
+{
+  "minify4u.output.scss":   "assets/css",  // main.scss → assets/css/main.min.css
+  "minify4u.expanded.scss": "assets/css"   // main.scss → assets/css/main.css
+}
+```
+
+Both settings are independent, take the same values (folder · `*` · empty), and one save
+produces whichever you asked for:
+
+- **Both set** — the minified *and* the readable file, from a single save.
+- **Only `expanded`** — readable CSS only. This is the setup that replaces a dedicated Sass
+  compiler whose job was to write one plain `.css`.
+- **Only `output`** — the classic build, unchanged.
+
+There is no `expanded` for JavaScript, CSS or HTML: compiling and minifying are the same
+step there, so "expanded" would just copy the source. JSON has it via the `json-pretty`
+minifier in `minify4u.rules`.
+
+> `expanded` writes a real file — pointing it at a folder that holds a hand-written
+> `main.css` overwrites it.
 
 ## Sass partials
 
@@ -105,6 +134,12 @@ Each of these settings takes a folder path relative to the folder root:
 | `minify4u.output.html`      | html       | minify               | `.min.html`|
 | `minify4u.output.json`      | json       | minify (compact)     | `.min.json`|
 | `minify4u.output.jsonc`     | json       | minify (compact)     | `.min.json`|
+| `minify4u.expanded.scss`    | sass       | **compile**, readable| `.css`     |
+| `minify4u.expanded.sass`    | sass       | **compile**, readable| `.css`     |
+| `minify4u.expanded.less`    | less       | **compile**, readable| `.css`     |
+
+> The `expanded.*` settings work alongside their `output.*` counterpart — set both to get
+> both files from one save. See [Readable CSS next to the minified file](#readable-css-next-to-the-minified-file).
 
 > Leave `minify4u.output.scss` **empty** if a dedicated Sass compiler already handles your
 > SCSS — otherwise both tools compile the same file.
@@ -224,9 +259,8 @@ npm run typecheck    # tsc --noEmit
 
 - Output is written **flat** into `savePath` (source basename + `suffix`); the subfolder
   structure under the glob is not mirrored yet.
-- No source maps and no autoprefixer yet, and Sass output is always compressed — there is no
-  way to emit an additional expanded `.css`. A dedicated Sass compiler is still needed for
-  those.
+- No source maps and no autoprefixer yet — for those a dedicated Sass compiler is still
+  needed alongside.
 
 ## License
 

@@ -7,6 +7,12 @@ versioning follows [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`minify4u.expanded.scss` / `.sass` / `.less`** — write readable, non-minified CSS, with the
+  same values as `output.*` (folder · `*` · empty). Independent of it: set both and one save
+  produces `main.css` *and* `main.min.css`; set only `expanded` to replace a dedicated Sass
+  compiler whose job was to write one plain stylesheet. Only for languages where compiling and
+  minifying differ — "expanded JavaScript" would just copy the source. Also available to
+  `minify4u.rules` as the minifiers `sass-expanded` and `less-expanded`.
 - **`Minify4U: Minify Current File`** command — runs the pipeline on the active file and
   always reports the outcome as a notification, including the cases that are silent on save.
   Saving stays quiet on purpose; this is the deliberate question when nothing happens and you

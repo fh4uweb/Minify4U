@@ -24,7 +24,8 @@ seinen eigenen Ausgabe-Ordner – z. B. Quellen in `src/` kompiliert und minifiz
 Bei jedem Speichern bestimmt die Extension die anzuwendende Regel:
 
 1. **`minify4u.rules`** – die **erste** passende Regel (per `glob` oder `type`) gewinnt.
-2. Greift keine Regel, wird **`minify4u.output.<sprache>`** herangezogen.
+2. Greift keine Regel, wird **`minify4u.output.<sprache>`** herangezogen – bei SCSS/Sass/LESS
+   zusätzlich **`minify4u.expanded.<sprache>`**, siehe unten.
 
 Danach wird die Datei mit dem passenden Minifier minifiziert und nach dem Ziel-Ordner
 (relativ zum Ordner-Root) geschrieben, mit der jeweiligen Endung.
@@ -50,6 +51,34 @@ Er fährt dieselbe Pipeline auf der aktiven Datei und antwortet **immer**, als M
 - `app.min.js is already minified — skipped.`
 
 Fehler melden sich immer als Pop-up, auch beim Speichern.
+
+## Lesbares CSS neben der minifizierten Datei
+
+Manche Setups laden schlichtes, nicht minifiziertes CSS – etwa eine `functions.php`, die
+`assets/css/main.css` einbindet. Genau das schreibt `minify4u.expanded.<sprache>`, für
+**SCSS, Sass und LESS**:
+
+```jsonc
+{
+  "minify4u.output.scss":   "assets/css",  // main.scss → assets/css/main.min.css
+  "minify4u.expanded.scss": "assets/css"   // main.scss → assets/css/main.css
+}
+```
+
+Beide Einstellungen sind unabhängig, nehmen dieselben Werte (Ordner · `*` · leer), und ein
+Speichern erzeugt, was man angefordert hat:
+
+- **Beide gesetzt** – die minifizierte **und** die lesbare Datei, aus einem Speichern.
+- **Nur `expanded`** – nur lesbares CSS. Das ist der Fall, der einen eigenen Sass-Compiler
+  ersetzt, dessen Aufgabe das Schreiben einer schlichten `.css` war.
+- **Nur `output`** – der klassische Build, unverändert.
+
+Für JavaScript, CSS oder HTML gibt es kein `expanded`: Dort sind Kompilieren und Minifizieren
+derselbe Schritt, „expandiert" wäre bloß eine Kopie der Quelle. JSON hat es über den Minifier
+`json-pretty` in `minify4u.rules`.
+
+> `expanded` schreibt eine echte Datei – zeigt es auf einen Ordner mit einer handgeschriebenen
+> `main.css`, wird die überschrieben.
 
 ## Sass-Partials
 
@@ -107,6 +136,12 @@ Jede dieser Einstellungen nimmt einen Ordner-Pfad relativ zum Ordner-Root entgeg
 | `minify4u.output.html`       | html       | minifizieren              | `.min.html`|
 | `minify4u.output.json`       | json       | minifizieren (kompakt)    | `.min.json`|
 | `minify4u.output.jsonc`      | json       | minifizieren (kompakt)    | `.min.json`|
+| `minify4u.expanded.scss`     | sass       | **kompilieren**, lesbar   | `.css`     |
+| `minify4u.expanded.sass`     | sass       | **kompilieren**, lesbar   | `.css`     |
+| `minify4u.expanded.less`     | less       | **kompilieren**, lesbar   | `.css`     |
+
+> Die `expanded.*`-Einstellungen arbeiten neben ihrem `output.*`-Gegenstück – beide setzen
+> ergibt beide Dateien aus einem Speichern. Siehe [Lesbares CSS neben der minifizierten Datei](#lesbares-css-neben-der-minifizierten-datei).
 
 > `minify4u.output.scss` **leer lassen**, wenn ein eigener Sass-Compiler das SCSS schon
 > übernimmt – sonst kompilieren beide dieselbe Datei.
@@ -228,9 +263,8 @@ npm run typecheck    # tsc --noEmit
 
 - Output wird **flach** in `savePath` abgelegt (Dateiname der Quelle + `suffix`); die
   Unterordner-Struktur unter dem Glob wird noch nicht gespiegelt.
-- Noch keine Source Maps und kein Autoprefixer, und die Sass-Ausgabe ist immer komprimiert –
-  eine zusätzliche expandierte `.css` lässt sich nicht erzeugen. Dafür braucht es weiterhin
-  einen eigenen Sass-Compiler.
+- Noch keine Source Maps und kein Autoprefixer – dafür braucht es weiterhin einen eigenen
+  Sass-Compiler daneben.
 
 ## Lizenz
 
