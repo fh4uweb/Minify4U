@@ -34,6 +34,29 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "minify4u.minifyCurrentFile",
+        "title": "Minify Current File",
+        "category": "Minify4U"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "minify4u.minifyCurrentFile",
+          "when": "resourceScheme == file && resourceLangId =~ /^(javascript|css|scss|sass|less|html|json|jsonc)$/",
+          "group": "1_modification@100"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "minify4u.minifyCurrentFile",
+          "when": "!explorerResourceIsFolder && resourceScheme == file && resourceLangId =~ /^(javascript|css|scss|sass|less|html|json|jsonc)$/",
+          "group": "7_modification"
+        }
+      ]
+    },
     "configuration": {
       "title": "Minify4U",
       "properties": {

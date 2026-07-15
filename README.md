@@ -34,6 +34,23 @@ The file is then minified with the matching minifier and written to the target f
 as already minified when its name ends with the rule's `suffix`, or when its base name ends
 with `.min`. Skipped saves are reported in the "Minify4U" output channel.
 
+## Asking on demand
+
+Saving is quiet unless there is something to report — otherwise the output channel would
+fill up in every project. But that makes a save that does nothing ambiguous: not configured,
+switched off, or broken?
+
+The command **`Minify4U: Minify Current File`** (Command Palette) is the deliberate question.
+It runs the same pipeline on the active file and **always** answers, as a notification:
+
+- `app.js → assets/js/app.min.js`
+- `No output configured for "scss" in this folder — set minify4u.output.scss.`
+- `Minify4U is switched off here (minify4u.enable = false).`
+- `_header.scss is a partial — rebuilt styles.scss.`
+- `app.min.js is already minified — skipped.`
+
+Errors always surface as a notification, on save as well.
+
 ## Sass partials
 
 A partial (`_variables.scss`) is not a stylesheet of its own — compiling it alone would emit

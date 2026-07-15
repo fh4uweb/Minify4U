@@ -34,6 +34,23 @@ Danach wird die Datei mit dem passenden Minifier minifiziert und nach dem Ziel-O
 Als bereits minifiziert gilt eine Datei, deren Name auf den `suffix` der Regel endet oder
 deren Basename auf `.min` endet. Übersprungene Saves melden sich im Output-Channel „Minify4U".
 
+## Auf Knopfdruck nachfragen
+
+Beim Speichern bleibt Minify4U still, solange es nichts zu melden gibt – sonst würde der
+Output-Channel in jedem Projekt volllaufen. Genau das macht ein Speichern ohne Wirkung aber
+mehrdeutig: nicht konfiguriert, abgeschaltet oder kaputt?
+
+Der Befehl **`Minify4U: Minify Current File`** (Befehlspalette) ist die bewusste Nachfrage.
+Er fährt dieselbe Pipeline auf der aktiven Datei und antwortet **immer**, als Meldung:
+
+- `app.js → assets/js/app.min.js`
+- `No output configured for "scss" in this folder — set minify4u.output.scss.`
+- `Minify4U is switched off here (minify4u.enable = false).`
+- `_header.scss is a partial — rebuilt styles.scss.`
+- `app.min.js is already minified — skipped.`
+
+Fehler melden sich immer als Pop-up, auch beim Speichern.
+
 ## Sass-Partials
 
 Ein Partial (`_variables.scss`) ist kein eigenes Stylesheet – einzeln kompiliert käme ein

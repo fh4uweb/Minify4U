@@ -7,11 +7,24 @@ versioning follows [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`Minify4U: Minify Current File`** command — runs the pipeline on the active file and
+  always reports the outcome as a notification, including the cases that are silent on save.
+  Saving stays quiet on purpose; this is the deliberate question when nothing happens and you
+  want to know why. Also available from the editor and explorer **context menus**, for the
+  file types Minify4U handles.
+- **Every answer names the setting *and* the level it came from** — `minify4u.output.html,
+  from the workspace` rather than just a path. The settings editor shows the effective value
+  but not its origin, so an empty field looks like "off" when it really means "this level says
+  nothing" and a broader one decides. This also distinguishes *"empty because you switched it
+  off here"* from *"never configured anywhere"*.
+- **A notification when a save produces nothing because Minify4U is switched off** — once per
+  folder per session, naming the level that set `enable: false`. Errors already notified;
+  "not configured" and "already minified" stay quiet, since neither means something failed.
 - **Sass partials are understood.** A `_partial.scss` is no longer compiled on its own
-  (which produced a fragment, or an empty file when it only held variables and mixins).
+  (which produced a fragment, or  an empty file when it only held variables and mixins).
   Saving one rebuilds the main files that import it, directly or through other partials.
   The dependencies come from Dart Sass itself (every file it loaded), not from parsing
-  `@use`/`@import`. Main files that do *not* import the partial are left untouched, so an
+  `@use`/`@import`. Main files that do *not* import the partial are left untouched, so  an
   upload-on-save watcher will not redeploy unchanged stylesheets.
 - **`minify4u.exclude`** — globs Minify4U ignores completely, for every language. Default
   `["**/node_modules/**", "**/.vscode/**"]`. The `.vscode` entry matters: VS Code treats its

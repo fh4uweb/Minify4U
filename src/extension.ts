@@ -34,6 +34,26 @@ interface MinifyResult {
   loadedUrls?: string[];
 }
 
+// Why a build did or did not produce output. On save most outcomes stay silent
+// on purpose; the "Minify Current File" command turns every one of them into an
+// answer, because a save that does nothing is otherwise indistinguishable from
+// a broken extension.
+type Outcome =
+  | { kind: "written"; rel: string; setting: string }
+  | { kind: "noRule"; setting: string }
+  | { kind: "disabled" }
+  | { kind: "alreadyMinified" }
+  | { kind: "notDependent" }
+  | { kind: "error"; message: string };
+
+// The rule that applies, plus the setting that decided it ("rules" or
+// "output.<lang>"). `rule` is undefined when nothing applies — `setting` still
+// names what was consulted, which is exactly what the user needs to be told.
+interface Resolved {
+  rule: Rule | undefined;
+  setting: string;
+}
+
 // Standard-Minifier + Endung je Sprache für die einfache `minify4u.output`-Map.
 // SCSS/SASS/LESS werden hier kompiliert + minifiziert (→ .min.css).
 const LANG_DEFAULTS: Record<string, { minifier: Minifier; suffix: string }> = {
@@ -58,6 +78,10 @@ let output: vscode.OutputChannel;
 // partial is saved to find the main files that have to be rebuilt.
 const sassDeps = new Map<string, Set<string>>();
 
+// Folders already told that Minify4U is switched off, so the notification does
+// not repeat on every save. Reset whenever the setting changes.
+const disabledWarned = new Set<string>();
+
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Minify4U");
   context.subscriptions.push(output);
@@ -68,7 +92,142 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "minify4u.minifyCurrentFile",
+      (target?: vscode.Uri) => minifyCurrentFile(target)
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("minify4u")) {
+        return;
+      }
+      // Switching the extension back on and off again should warn again, and a
+      // changed exclude list can invalidate which files the cached dependencies
+      // were collected from.
+      disabledWarned.clear();
+      sassDeps.clear();
+    })
+  );
+
   output.appendLine("Minify4U activated.");
+}
+
+// Saving stays quiet unless there is something to say — otherwise the channel
+// would fill up in every project. This command is the deliberate question:
+// it runs the same pipeline on the active file and always answers, as a
+// notification rather than a line nobody reads.
+// `target` is set when invoked from the explorer context menu, where the active
+// editor may be something else entirely; from the palette or the editor menu it
+// is the file in front of the user.
+async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
+  const doc = await resolveDocument(target);
+  if (!doc) {
+    void tell("warn", "No file is open.");
+    return;
+  }
+
+  const name = path.basename(doc.fileName);
+
+  if (doc.uri.scheme !== "file") {
+    void tell("warn", `${name} is not a file on disk.`);
+    return;
+  }
+  if (doc.isDirty) {
+    // Sass compiles from disk, so an unsaved buffer would report the previous
+    // content — and saving runs the whole pipeline anyway.
+    void tell("warn", `${name} has unsaved changes — save it first.`);
+    return;
+  }
+
+  const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
+  if (!folder) {
+    void tell("warn", `${name} is outside every workspace folder.`);
+    return;
+  }
+
+  const config = vscode.workspace.getConfiguration("minify4u", doc.uri);
+
+  if (isExcluded(config, doc, folder)) {
+    void tell("info", `${name} is ignored — it matches minify4u.exclude.`);
+    return;
+  }
+
+  if (isSassPartial(doc)) {
+    const built = await rebuildDependents(config, doc, folder);
+    void tell(
+      "info",
+      built.length > 0
+        ? `${name} is a partial — rebuilt ${built.join(", ")}.`
+        : `${name} is a partial, but no main file imports it.`
+    );
+    return;
+  }
+
+  const outcome = await buildDocument(config, doc, folder);
+  switch (outcome.kind) {
+    case "written":
+      void tell(
+        "info",
+        `${name} → ${outcome.rel}  (minify4u.${outcome.setting}, from ${originOf(config, outcome.setting)})`
+      );
+      break;
+    case "noRule": {
+      const from = originOf(config, outcome.setting);
+      // "Set explicitly to empty here" and "nobody ever configured it" both mean
+      // no output, but only one of them is something the user did on purpose.
+      void tell(
+        "warn",
+        from === "the default"
+          ? `Nothing to do for "${doc.languageId}" — minify4u.${outcome.setting} is not set anywhere.`
+          : `Nothing to do for "${doc.languageId}" — minify4u.${outcome.setting} is empty, set by ${from}.`
+      );
+      break;
+    }
+    case "disabled":
+      void tell(
+        "warn",
+        `Minify4U is switched off here — minify4u.enable = false, set by ${originOf(config, "enable")}.`
+      );
+      break;
+    case "alreadyMinified":
+      void tell("info", `${name} is already minified — skipped.`);
+      break;
+    case "error":
+      // buildDocument already raised the error notification.
+      break;
+    case "notDependent":
+      break;
+  }
+}
+
+async function resolveDocument(
+  target?: vscode.Uri
+): Promise<vscode.TextDocument | undefined> {
+  if (!target) {
+    return vscode.window.activeTextEditor?.document;
+  }
+  try {
+    return await vscode.workspace.openTextDocument(target);
+  } catch {
+    // Right-clicking a folder, or a binary VS Code refuses to open as text.
+    return undefined;
+  }
+}
+
+async function tell(level: "info" | "warn", message: string): Promise<void> {
+  const text = `Minify4U: ${message}`;
+  // Called on vscode.window directly — pulling the method into a variable would
+  // strip its receiver.
+  const pick =
+    level === "warn"
+      ? await vscode.window.showWarningMessage(text, "Show output")
+      : await vscode.window.showInformationMessage(text, "Show output");
+  if (pick) {
+    output.show(true);
+  }
 }
 
 export function deactivate(): void {
@@ -102,6 +261,7 @@ async function handleSave(doc: vscode.TextDocument): Promise<void> {
         output.appendLine(
           `✗ ${path.basename(doc.fileName)}: skipped — Minify4U is disabled (minify4u.enable = false)`
         );
+        warnDisabledOnce(config, folder);
       }
       return;
     }
@@ -109,7 +269,32 @@ async function handleSave(doc: vscode.TextDocument): Promise<void> {
     return;
   }
 
-  await buildDocument(config, doc, folder);
+  const outcome = await buildDocument(config, doc, folder);
+  if (outcome.kind === "disabled") {
+    warnDisabledOnce(config, folder);
+  }
+}
+
+// Saving a file that is fully configured and still produces nothing is the one
+// case worth interrupting for — a line in the output channel is easy to miss,
+// and this exact silence once cost an hour of debugging. Errors already raise
+// their own notification; "no output configured" and "already minified" stay
+// quiet, since neither means something went wrong.
+//
+// Once per folder per session: enough to learn about it, not enough to nag while
+// working in a project that is switched off on purpose.
+function warnDisabledOnce(
+  config: vscode.WorkspaceConfiguration,
+  folder: vscode.WorkspaceFolder
+): void {
+  if (disabledWarned.has(key(folder.uri.fsPath))) {
+    return;
+  }
+  disabledWarned.add(key(folder.uri.fsPath));
+  void tell(
+    "warn",
+    `Nothing was written in "${folder.name}" — minify4u.enable = false, set by ${originOf(config, "enable")}.`
+  );
 }
 
 // Compiles/minifies one document and writes the result. `onlyIfImports` is set
@@ -122,10 +307,10 @@ async function buildDocument(
   doc: vscode.TextDocument,
   folder: vscode.WorkspaceFolder,
   onlyIfImports?: string
-): Promise<boolean> {
-  const rule = resolveRule(config, doc, folder);
+): Promise<Outcome> {
+  const { rule, setting } = resolveRule(config, doc, folder);
   if (!rule) {
-    return false;
+    return { kind: "noRule", setting };
   }
 
   // Report the disabled state only once a rule would actually have applied,
@@ -135,7 +320,7 @@ async function buildDocument(
     output.appendLine(
       `✗ ${path.basename(doc.fileName)}: skipped — Minify4U is disabled (minify4u.enable = false)`
     );
-    return false;
+    return { kind: "disabled" };
   }
 
   // Never re-minify an already minified file: it would append the suffix a
@@ -145,7 +330,7 @@ async function buildDocument(
     output.appendLine(
       `• ${path.basename(doc.fileName)}: skipped — already minified`
     );
-    return false;
+    return { kind: "alreadyMinified" };
   }
 
   try {
@@ -155,19 +340,19 @@ async function buildDocument(
       sassDeps.set(key(doc.fileName), new Set(result.loadedUrls.map(key)));
     }
     if (onlyIfImports && !result.loadedUrls?.some((u) => key(u) === onlyIfImports)) {
-      return false;
+      return { kind: "notDependent" };
     }
 
     const target = resolveTarget(folder, doc, rule);
     await vscode.workspace.fs.writeFile(target, Buffer.from(result.code, "utf8"));
     const rel = path.relative(folder.uri.fsPath, target.fsPath);
     output.appendLine(`✓ ${path.basename(doc.fileName)} → ${rel}`);
-    return true;
+    return { kind: "written", rel, setting };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     output.appendLine(`✗ ${path.basename(doc.fileName)}: ${msg}`);
     void vscode.window.showErrorMessage(`Minify4U: ${msg}`);
-    return false;
+    return { kind: "error", message: msg };
   }
 }
 
@@ -176,17 +361,17 @@ async function rebuildDependents(
   config: vscode.WorkspaceConfiguration,
   partial: vscode.TextDocument,
   folder: vscode.WorkspaceFolder
-): Promise<void> {
+): Promise<string[]> {
   const name = path.basename(partial.fileName);
   const partialKey = key(partial.fileName);
   const candidates = await findCandidateMains(config, partial.fileName, folder);
 
   if (candidates.length === 0) {
     output.appendLine(`• ${name}: partial saved — no main file found to rebuild`);
-    return;
+    return [];
   }
 
-  let built = 0;
+  const built: string[] = [];
   for (const main of candidates) {
     // A main already known not to import this partial needs no compile at all.
     const known = sassDeps.get(key(main));
@@ -194,14 +379,16 @@ async function rebuildDependents(
       continue;
     }
     const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(main));
-    if (await buildDocument(config, doc, folder, partialKey)) {
-      built++;
+    const outcome = await buildDocument(config, doc, folder, partialKey);
+    if (outcome.kind === "written") {
+      built.push(path.basename(main));
     }
   }
 
-  if (built === 0) {
+  if (built.length === 0) {
     output.appendLine(`• ${name}: partial saved — no main file imports it`);
   }
+  return built;
 }
 
 // Cold start: with an empty dependency cache the importing main is unknown, so
@@ -238,25 +425,27 @@ async function findCandidateMains(
   }
 }
 
-// Bestimmt die anzuwendende Regel: zuerst die erste passende `rules`-Regel
-// (Ausnahmen/Globs, haben Vorrang), sonst Fallback auf die `output`-Map je Sprache.
+// Picks the rule to apply: the first matching `rules` entry (globs/exceptions,
+// they win), otherwise the per-language `output.<lang>` setting. `setting` names
+// whichever one decided, so the outcome can be explained without re-deriving it.
 function resolveRule(
   config: vscode.WorkspaceConfiguration,
   doc: vscode.TextDocument,
   folder: vscode.WorkspaceFolder
-): Rule | undefined {
+): Resolved {
   const rules = config.get<Rule[]>("rules", []);
   const rule = rules.find((r) => matches(r, doc, folder));
   if (rule) {
-    return rule;
+    return { rule, setting: "rules" };
   }
 
-  // One setting per language, e.g. "minify4u.output.javascript".
+  const setting = `output.${doc.languageId}`;
+
   // Empty = language disabled (e.g. leave "scss" empty to let a dedicated
   // Sass compiler handle it instead).
-  const savePath = config.get<string>(`output.${doc.languageId}`)?.trim();
+  const savePath = config.get<string>(setting)?.trim();
   if (!savePath) {
-    return undefined;
+    return { rule: undefined, setting };
   }
 
   const def = LANG_DEFAULTS[doc.languageId];
@@ -264,15 +453,38 @@ function resolveRule(
     output.appendLine(
       `✗ ${doc.languageId}: no default minifier mapping — please configure it via "minify4u.rules" with "minifier"/"suffix".`
     );
-    return undefined;
+    return { rule: undefined, setting };
   }
 
   return {
-    type: doc.languageId,
-    savePath,
-    suffix: def.suffix,
-    minifier: def.minifier
+    rule: {
+      type: doc.languageId,
+      savePath,
+      suffix: def.suffix,
+      minifier: def.minifier
+    },
+    setting
   };
+}
+
+// Which level actually supplied a value. The settings editor shows the effective
+// value but not where it came from — the cause of every "but the field is empty"
+// confusion: an empty field means "this level says nothing", not "off".
+function originOf(
+  config: vscode.WorkspaceConfiguration,
+  setting: string
+): string {
+  const info = config.inspect(setting);
+  if (info?.workspaceFolderValue !== undefined) {
+    return "this project";
+  }
+  if (info?.workspaceValue !== undefined) {
+    return "the workspace";
+  }
+  if (info?.globalValue !== undefined) {
+    return "your user settings";
+  }
+  return "the default";
 }
 
 // Windows paths differ in case and separators depending on who reports them
