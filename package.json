@@ -132,6 +132,12 @@
           "markdownDescription": "Output folder for **readable, non-minified CSS** compiled from LESS, relative to the folder root.\n\nIndependent of `minify4u.output.less` — see `minify4u.expanded.scss`.\n\nExample: `assets/css` — saving `src/theme.less` writes `assets/css/theme.css`.\n\n`*` = write next to the source file · empty = no expanded output",
           "scope": "resource"
         },
+        "minify4u.sourceMaps": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Write a source map (`<output>.css.map`) next to every CSS file compiled from **SCSS, Sass or LESS** — minified and readable alike, including `minify4u.rules` entries that use those compilers. DevTools then point at the original source line instead of the compiled CSS.\n\nSources are referenced relative to the map *and* embedded into it, so the mapping works even where the source tree is not deployed.\n\nOff by default: the maps land next to your output files, and an upload-on-save watcher would deploy them.",
+          "scope": "resource"
+        },
         "minify4u.exclude": {
           "type": "array",
           "default": [

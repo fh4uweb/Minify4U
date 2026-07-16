@@ -7,6 +7,13 @@ versioning follows [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`minify4u.sourceMaps`** — one switch (default off). When on, every CSS compiled from
+  SCSS/Sass/LESS gets a `.css.map` next to it plus the `sourceMappingURL` comment, minified
+  and readable output alike, including `minify4u.rules` entries using those compilers.
+  Sources are referenced relative to the map *and* embedded into it, so DevTools resolve
+  them both on a server mirroring the local tree and where the sources are not deployed.
+  For minified LESS the map is carried through the less → clean-css chain, so it points at
+  the `.less` source, not at the readable intermediate.
 - **`minify4u.expanded.scss` / `.sass` / `.less`** — write readable, non-minified CSS, with the
   same values as `output.*` (folder · `*` · empty). Independent of it: set both and one save
   produces `main.css` *and* `main.min.css`; set only `expanded` to replace a dedicated Sass

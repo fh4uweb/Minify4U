@@ -35,10 +35,25 @@ interface LangDefault {
   suffix: string;
 }
 
+// The parts of a version-3 source map this extension touches. Dart Sass, Less
+// and clean-css all emit this structure, just with differently shaped sources
+// (file: URLs vs. absolute paths) — serializeMap normalizes that.
+interface SourceMap {
+  version: number | string;
+  file?: string;
+  sourceRoot?: string;
+  sources: string[];
+  sourcesContent?: (string | null)[];
+  names: string[];
+  mappings: string;
+}
+
 interface MinifyResult {
   code: string;
   // Only Dart Sass reports this: every file pulled in via @use/@import/@forward.
   loadedUrls?: string[];
+  // Raw source map as the compiler handed it over; written by buildDocument.
+  map?: SourceMap;
 }
 
 // Why a build did or did not produce output. On save most outcomes stay silent
@@ -58,6 +73,7 @@ type Outcome =
 interface Written {
   rel: string;
   setting: string;
+  map: boolean;
 }
 
 // A rule to apply, plus the setting that decided it ("rules", "output.<lang>" or
@@ -206,7 +222,7 @@ async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
         `${name} → ${outcome.wrote
           .map(
             (w) =>
-              `${w.rel} (minify4u.${w.setting}, from ${originOf(config, w.setting)})`
+              `${w.rel}${w.map ? " +map" : ""} (minify4u.${w.setting}, from ${originOf(config, w.setting)})`
           )
           .join(" · ")}`
       );
@@ -375,10 +391,16 @@ async function buildDocument(
   }
 
   try {
+    const wantMap = config.get<boolean>("sourceMaps", false);
     const wrote: Written[] = [];
 
     for (const a of applied) {
-      const result = await minifyCode(a.rule.minifier, doc.getText(), doc.fileName);
+      const result = await minifyCode(
+        a.rule.minifier,
+        doc.getText(),
+        doc.fileName,
+        wantMap
+      );
 
       if (result.loadedUrls) {
         sassDeps.set(key(doc.fileName), new Set(result.loadedUrls.map(key)));
@@ -390,10 +412,24 @@ async function buildDocument(
       }
 
       const target = resolveTarget(folder, doc, a.rule);
-      await vscode.workspace.fs.writeFile(target, Buffer.from(result.code, "utf8"));
+      let code = result.code;
+      if (result.map) {
+        // Map first: by the time the CSS (and its sourceMappingURL) goes out —
+        // possibly straight to a server via upload-on-save — the map it points
+        // to already exists. Written via the fs API, so no onDidSave fires.
+        const mapName = path.basename(target.fsPath) + ".map";
+        await vscode.workspace.fs.writeFile(
+          vscode.Uri.file(target.fsPath + ".map"),
+          Buffer.from(serializeMap(result.map, target.fsPath), "utf8")
+        );
+        code = `${code}${code.endsWith("\n") ? "" : "\n"}/*# sourceMappingURL=${mapName} */\n`;
+      }
+      await vscode.workspace.fs.writeFile(target, Buffer.from(code, "utf8"));
       const rel = path.relative(folder.uri.fsPath, target.fsPath);
-      output.appendLine(`✓ ${path.basename(doc.fileName)} → ${rel}`);
-      wrote.push({ rel, setting: a.setting });
+      output.appendLine(
+        `✓ ${path.basename(doc.fileName)} → ${rel}${result.map ? " (+ .map)" : ""}`
+      );
+      wrote.push({ rel, setting: a.setting, map: result.map !== undefined });
     }
 
     return { kind: "written", wrote };
@@ -580,6 +616,23 @@ function key(fileOrPath: string): string {
   return path.normalize(fileOrPath).toLowerCase();
 }
 
+// The compilers report sources as file: URLs (Dart Sass) or absolute paths
+// (Less, clean-css). A browser resolves them against the map's own location,
+// so each one is rewritten relative to the map — POSIX separators, which is
+// what keeps the map portable to a server that mirrors the local tree.
+function serializeMap(map: SourceMap, cssPath: string): string {
+  const dir = path.dirname(cssPath);
+  map.file = path.basename(cssPath);
+  map.sources = map.sources.map((source) => {
+    const abs = source.startsWith("file:") ? fileURLToPath(source) : source;
+    if (!path.isAbsolute(abs)) {
+      return source; // already relative — trust the compiler
+    }
+    return path.relative(dir, abs).split(path.sep).join("/");
+  });
+  return JSON.stringify(map);
+}
+
 function isPartialName(fileName: string): boolean {
   return path.basename(fileName).startsWith("_");
 }
@@ -652,7 +705,8 @@ function matches(
 async function minifyCode(
   minifier: Minifier,
   code: string,
-  fileName: string
+  fileName: string,
+  wantMap: boolean
 ): Promise<MinifyResult> {
   const dir = path.dirname(fileName);
 
@@ -666,7 +720,7 @@ async function minifyCode(
     }
 
     case "clean-css":
-      return { code: cleanCss(code) };
+      return cleanCss(code);
 
     case "sass":
     case "sass-expanded": {
@@ -676,10 +730,15 @@ async function minifyCode(
       // .sass syntax is derived from the extension automatically.
       const result = sass.compile(fileName, {
         style: minifier === "sass" ? "compressed" : "expanded",
-        loadPaths: [dir]
+        loadPaths: [dir],
+        sourceMap: wantMap,
+        // Embed the sources into the map: DevTools then show the SCSS even on a
+        // server where the source tree is not deployed.
+        sourceMapIncludeSources: wantMap
       });
       return {
         code: result.css,
+        map: result.sourceMap,
         // fileURLToPath throws on anything but file:. Dart Sass does not report
         // built-in modules such as `sass:math` here, but a custom importer could
         // hand back another scheme.
@@ -693,13 +752,40 @@ async function minifyCode(
     case "less-expanded": {
       const rendered = await less.render(code, {
         filename: fileName,
-        paths: [dir]
+        paths: [dir],
+        // outputSourceFiles embeds the sources, matching sourceMapIncludeSources.
+        sourceMap: wantMap ? { outputSourceFiles: true } : undefined
       });
+      // Two Less quirks, both verified against the real library: it reports
+      // sources relative to the entry file's directory (not absolute like the
+      // other compilers), and it plants a guessed sourceMappingURL comment into
+      // the CSS. Undo both here, where the base directory is still known —
+      // buildDocument appends the comment with the real map name itself.
+      const absolute = (map: SourceMap): SourceMap => ({
+        ...map,
+        sources: map.sources.map((s) =>
+          path.isAbsolute(s) ? s : path.resolve(dir, s)
+        )
+      });
+      const css = rendered.css.replace(
+        /\/\*# sourceMappingURL=[^*]*\*\/\s*$/,
+        ""
+      );
+      if (minifier === "less-expanded") {
+        return {
+          code: css,
+          map: rendered.map
+            ? absolute(JSON.parse(rendered.map) as SourceMap)
+            : undefined
+        };
+      }
       // Less has no "style" option — it always renders readable CSS, and the
-      // minified variant is that output run through clean-css.
-      return {
-        code: minifier === "less" ? cleanCss(rendered.css) : rendered.css
-      };
+      // minified variant is that output run through clean-css. The Less map is
+      // handed along so the final map points at the .less source, not at the
+      // readable intermediate; clean-css copies the sources verbatim, so they
+      // are absolutized after the chain.
+      const result = cleanCss(css, rendered.map);
+      return { code: result.code, map: result.map && absolute(result.map) };
     }
 
     case "html":
@@ -726,12 +812,26 @@ async function minifyCode(
   }
 }
 
-function cleanCss(code: string): string {
-  const result = new CleanCSS({ returnPromise: false }).minify(code);
+// With an input map (the less → clean-css chain), clean-css consumes it and
+// re-emits a map that points at the original .less source; sourceMapInlineSources
+// carries the embedded sources through.
+function cleanCss(code: string, inputMap?: string): MinifyResult {
+  const cleaner = new CleanCSS(
+    inputMap === undefined
+      ? { returnPromise: false }
+      : { returnPromise: false, sourceMap: true, sourceMapInlineSources: true }
+  );
+  const result =
+    inputMap === undefined ? cleaner.minify(code) : cleaner.minify(code, inputMap);
   if (result.errors.length > 0) {
     throw new Error(result.errors.join("; "));
   }
-  return result.styles;
+  return {
+    code: result.styles,
+    map: result.sourceMap
+      ? (JSON.parse(result.sourceMap.toString()) as SourceMap)
+      : undefined
+  };
 }
 
 // indent 0 = minifiziert (kompakt); indent > 0 = lesbar eingerückt (json-pretty).

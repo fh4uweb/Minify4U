@@ -80,6 +80,27 @@ derselbe Schritt, „expandiert" wäre bloß eine Kopie der Quelle. JSON hat es 
 > `expanded` schreibt eine echte Datei – zeigt es auf einen Ordner mit einer handgeschriebenen
 > `main.css`, wird die überschrieben.
 
+## Source Maps
+
+```jsonc
+{ "minify4u.sourceMaps": true }
+```
+
+Ein Schalter, standardmäßig aus. Angeschaltet bekommt jede CSS-Datei, die aus **SCSS, Sass
+oder LESS** kompiliert wurde – minifiziert wie lesbar, auch über `minify4u.rules`-Einträge
+mit diesen Compilern – eine `<name>.css.map` daneben plus den `sourceMappingURL`-Kommentar.
+Die DevTools zeigen dann die Zeile in der Quelle statt im kompilierten CSS.
+
+Die Quellen sind relativ zur Map referenziert – das funktioniert auf einem Server, der die
+lokale Struktur spiegelt. Zusätzlich ist der Quelltext in die Map eingebettet, es
+funktioniert also selbst dort, wo der Quellbaum nicht deployt ist.
+
+Standardmäßig aus, weil die Maps neben den Output-Dateien landen: ein Upload-beim-Speichern-
+Watcher würde sie mit deployen, und niemand soll durch ein Update Überraschungsdateien
+bekommen. Wird der Schalter wieder ausgeschaltet, verschwindet der Kommentar beim nächsten
+Speichern von selbst – bereits geschriebene `.map`-Dateien bleiben liegen, die einmal von
+Hand löschen.
+
 ## Sass-Partials
 
 Ein Partial (`_variables.scss`) ist kein eigenes Stylesheet – einzeln kompiliert käme ein
@@ -263,7 +284,7 @@ npm run typecheck    # tsc --noEmit
 
 - Output wird **flach** in `savePath` abgelegt (Dateiname der Quelle + `suffix`); die
   Unterordner-Struktur unter dem Glob wird noch nicht gespiegelt.
-- Noch keine Source Maps und kein Autoprefixer – dafür braucht es weiterhin einen eigenen
+- Noch kein Autoprefixer – wer darauf angewiesen ist, braucht weiterhin einen eigenen
   Sass-Compiler daneben.
 
 ## Lizenz

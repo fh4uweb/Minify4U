@@ -80,6 +80,26 @@ minifier in `minify4u.rules`.
 > `expanded` writes a real file — pointing it at a folder that holds a hand-written
 > `main.css` overwrites it.
 
+## Source maps
+
+```jsonc
+{ "minify4u.sourceMaps": true }
+```
+
+One switch, off by default. When on, every CSS file compiled from **SCSS, Sass or LESS** —
+minified and readable alike, including `minify4u.rules` entries that use those compilers —
+gets a `<name>.css.map` next to it plus the `sourceMappingURL` comment. DevTools then point
+at the original source line instead of the compiled CSS.
+
+Sources are referenced relative to the map, so the mapping works on a server that mirrors
+your local tree — and the source text is also embedded into the map, so it even works where
+the source tree is not deployed.
+
+Off by default because the maps land next to your output files: an upload-on-save watcher
+would deploy them, and nobody should get surprise files from an update. Turning the switch
+off again removes the comment on the next save, but already written `.map` files stay —
+delete them once by hand.
+
 ## Sass partials
 
 A partial (`_variables.scss`) is not a stylesheet of its own — compiling it alone would emit
@@ -259,8 +279,8 @@ npm run typecheck    # tsc --noEmit
 
 - Output is written **flat** into `savePath` (source basename + `suffix`); the subfolder
   structure under the glob is not mirrored yet.
-- No source maps and no autoprefixer yet — for those a dedicated Sass compiler is still
-  needed alongside.
+- No autoprefixer yet — if you rely on one, a dedicated Sass compiler is still needed
+  alongside.
 
 ## License
 
