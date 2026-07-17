@@ -65,6 +65,10 @@ for **SCSS, Sass and LESS**:
 }
 ```
 
+Like every `output.*` setting, this is **per language, not per file**: it applies to every
+`.scss` in the folder. To single out one file, use a `minify4u.rules` entry with the
+`sass-expanded` minifier.
+
 Both settings are independent, take the same values (folder · `*` · empty), and one save
 produces whichever you asked for:
 
@@ -247,15 +251,37 @@ Rules take **precedence** over `minify4u.output.<language>`:
 
 ### Minifier values
 
-| Value         | Result |
-|---------------|----------|
-| `terser`      | minify JavaScript |
-| `clean-css`   | minify CSS |
-| `sass`        | **compile** + minify SCSS/SASS → CSS |
-| `less`        | **compile** + minify LESS → CSS |
-| `html`        | minify HTML |
-| `json`        | minify JSON/JSONC (compact) |
-| `json-pretty` | convert JSON/JSONC to **readable** JSON (comments/trailing commas removed, indented) — *not* minified |
+| Value            | Result |
+|------------------|----------|
+| `terser`         | minify JavaScript |
+| `clean-css`      | minify CSS |
+| `sass`           | **compile** + minify SCSS/SASS → CSS |
+| `sass-expanded`  | **compile** SCSS/SASS → **readable** CSS — *not* minified |
+| `less`           | **compile** + minify LESS → CSS |
+| `less-expanded`  | **compile** LESS → **readable** CSS — *not* minified |
+| `html`           | minify HTML |
+| `json`           | minify JSON/JSONC (compact) |
+| `json-pretty`    | convert JSON/JSONC to **readable** JSON (comments/trailing commas removed, indented) — *not* minified |
+
+**Example — readable CSS from one specific file.** `minify4u.expanded.<language>` applies to
+*every* file of that language in the folder; a rule is how you single one out:
+
+```jsonc
+{
+  "minify4u.rules": [
+    {
+      "glob": "files4u/scss/main.scss",
+      "savePath": "assets/css",
+      "suffix": ".css",
+      "minifier": "sass-expanded"
+    }
+  ]
+}
+```
+
+> Remember that a rule **replaces** the per-language settings for the files it matches, and
+> produces exactly **one** output — `output.scss` and `expanded.scss` no longer apply to
+> `main.scss` here.
 
 **Example — convert JSONC to readable JSON (instead of minifying):**
 

@@ -65,6 +65,10 @@ Manche Setups laden schlichtes, nicht minifiziertes CSS – etwa eine `functions
 }
 ```
 
+Wie jede `output.*`-Einstellung gilt das **je Sprache, nicht je Datei**: betroffen ist jede
+`.scss` im Ordner. Um eine einzelne Datei herauszugreifen, nimmt man einen
+`minify4u.rules`-Eintrag mit dem Minifier `sass-expanded`.
+
 Beide Einstellungen sind unabhängig, nehmen dieselben Werte (Ordner · `*` · leer), und ein
 Speichern erzeugt, was man angefordert hat:
 
@@ -252,15 +256,37 @@ haben **Vorrang** vor `minify4u.output.<sprache>`:
 
 ### Minifier-Werte
 
-| Wert          | Ergebnis |
-|---------------|----------|
-| `terser`      | JavaScript minifizieren |
-| `clean-css`   | CSS minifizieren |
-| `sass`        | SCSS/SASS **kompilieren** + minifizieren → CSS |
-| `less`        | LESS **kompilieren** + minifizieren → CSS |
-| `html`        | HTML minifizieren |
-| `json`        | JSON/JSONC minifizieren (kompakt) |
-| `json-pretty` | JSON/JSONC in **lesbare** JSON umwandeln (Kommentare/Trailing-Commas raus, eingerückt) – *nicht* minifiziert |
+| Wert             | Ergebnis |
+|------------------|----------|
+| `terser`         | JavaScript minifizieren |
+| `clean-css`      | CSS minifizieren |
+| `sass`           | SCSS/SASS **kompilieren** + minifizieren → CSS |
+| `sass-expanded`  | SCSS/SASS **kompilieren** → **lesbares** CSS – *nicht* minifiziert |
+| `less`           | LESS **kompilieren** + minifizieren → CSS |
+| `less-expanded`  | LESS **kompilieren** → **lesbares** CSS – *nicht* minifiziert |
+| `html`           | HTML minifizieren |
+| `json`           | JSON/JSONC minifizieren (kompakt) |
+| `json-pretty`    | JSON/JSONC in **lesbare** JSON umwandeln (Kommentare/Trailing-Commas raus, eingerückt) – *nicht* minifiziert |
+
+**Beispiel – lesbares CSS aus genau einer Datei.** `minify4u.expanded.<sprache>` gilt für
+*jede* Datei dieser Sprache im Ordner; eine Regel ist der Weg, eine einzelne herauszugreifen:
+
+```jsonc
+{
+  "minify4u.rules": [
+    {
+      "glob": "files4u/scss/main.scss",
+      "savePath": "assets/css",
+      "suffix": ".css",
+      "minifier": "sass-expanded"
+    }
+  ]
+}
+```
+
+> Dabei dran denken: Eine Regel **ersetzt** für die Dateien, auf die sie passt, die
+> Sprach-Einstellungen und erzeugt genau **eine** Ausgabe – `output.scss` und
+> `expanded.scss` gelten für `main.scss` dann nicht mehr.
 
 **Beispiel – JSONC lesbar zu JSON umwandeln (statt minifizieren):**
 
