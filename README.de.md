@@ -346,3 +346,7 @@ npm run typecheck    # tsc --noEmit
 ## Lizenz
 
 [MIT](LICENSE) © Frank Hackenberg (4UWeb)
+
+---
+
+Entwickelt von **[ForYourWeb](https://4uweb.de)** — Frank Hackenberg, Full Stack Web Developer.

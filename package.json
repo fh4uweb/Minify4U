@@ -5,6 +5,10 @@
   "version": "0.3.0",
   "publisher": "4uweb",
   "license": "MIT",
+  "author": {
+    "name": "Frank Hackenberg",
+    "url": "https://4uweb.de"
+  },
   "icon": "images/minify4u.png",
   "engines": {
     "vscode": "^1.90.0"
