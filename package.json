@@ -2,7 +2,7 @@
   "name": "minify4u",
   "displayName": "Minify4U",
   "description": "Minify source files (JS/CSS/SCSS/SASS/LESS/HTML/JSON) on save and write the output to a path that is freely configurable per file type.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "4uweb",
   "license": "MIT",
   "author": {
@@ -23,7 +23,9 @@
     "sass",
     "scss",
     "less",
-    "css"
+    "css",
+    "autoprefixer",
+    "source map"
   ],
   "repository": {
     "type": "git",

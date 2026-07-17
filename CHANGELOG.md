@@ -6,6 +6,11 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] – 2026-07-17
+
+Replaces a live Sass compiler for the common case: understands partials, writes a readable
+CSS next to the minified one, emits source maps, and adds vendor prefixes.
+
 ### Added
 - **`minify4u.autoprefixer`** — adds vendor prefixes to every CSS Minify4U produces (SCSS,
   Sass, LESS and plain CSS; minified and readable alike). Default off, since prefixes change
