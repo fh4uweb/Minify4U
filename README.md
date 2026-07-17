@@ -80,6 +80,37 @@ minifier in `minify4u.rules`.
 > `expanded` writes a real file — pointing it at a folder that holds a hand-written
 > `main.css` overwrites it.
 
+## Vendor prefixes
+
+```jsonc
+{ "minify4u.autoprefixer": true }
+```
+
+Off by default. When on, every CSS file Minify4U produces — from **SCSS, Sass, LESS and
+plain CSS**, minified and readable alike — is run through
+[Autoprefixer](https://github.com/postcss/autoprefixer). Prefixes go in *before* minifying,
+and source maps keep pointing at the original source.
+
+**The targets come from your project**, not from a setting: browserslist searches upwards
+from the source file for a `package.json` `"browserslist"` field or a `.browserslistrc`.
+That is deliberate — the same config already drives your other tooling, and two places to
+declare browser support is one too many. Without any config, browserslist's defaults apply.
+
+For projects that carry no browserslist config, `minify4u.browserslist` overrides the query:
+
+```jsonc
+{ "minify4u.browserslist": ["> 1%", "last 2 versions", "not dead"] }
+```
+
+Every write names what it prefixed against, so the targets are never a silent guess:
+
+```
+✓ styles.scss → assets/css/styles.min.css (+ .map, prefixed for 14 browsers)
+```
+
+Off by default because prefixes change the files you ship — that should never arrive as a
+side effect of an update.
+
 ## Source maps
 
 ```jsonc
@@ -279,8 +310,6 @@ npm run typecheck    # tsc --noEmit
 
 - Output is written **flat** into `savePath` (source basename + `suffix`); the subfolder
   structure under the glob is not mirrored yet.
-- No autoprefixer yet — if you rely on one, a dedicated Sass compiler is still needed
-  alongside.
 
 ## License
 

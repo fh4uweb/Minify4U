@@ -10,6 +10,11 @@ import * as sass from "sass";
 import less from "less";
 import { minify as htmlMinify } from "html-minifier-terser";
 import { parse as jsoncParse, ParseError, printParseErrorCode } from "jsonc-parser";
+import postcss from "postcss";
+import autoprefixer from "autoprefixer";
+// Autoprefixer resolves the browser targets through browserslist anyway; it is
+// imported directly to be able to *report* what it resolved to.
+import browserslist from "browserslist";
 
 type Minifier =
   | "terser"
@@ -56,6 +61,16 @@ interface MinifyResult {
   map?: SourceMap;
 }
 
+// What the settings ask of one build, gathered once per save rather than read
+// from the config in every branch.
+interface BuildOptions {
+  sourceMap: boolean;
+  autoprefixer: boolean;
+  // Empty = let browserslist find the project's own config (package.json,
+  // .browserslistrc) by walking up from the source file.
+  browserslist: string[];
+}
+
 // Why a build did or did not produce output. On save most outcomes stay silent
 // on purpose; the "Minify Current File" command turns every one of them into an
 // answer, because a save that does nothing is otherwise indistinguishable from
@@ -74,6 +89,7 @@ interface Written {
   rel: string;
   setting: string;
   map: boolean;
+  prefixed: boolean;
 }
 
 // A rule to apply, plus the setting that decided it ("rules", "output.<lang>" or
@@ -114,6 +130,19 @@ const EXPANDED_DEFAULTS: Record<string, LangDefault> = {
   sass: { minifier: "sass-expanded", suffix: ".css" },
   less: { minifier: "less-expanded", suffix: ".css" }
 };
+
+// The minifiers whose output is CSS — the only ones autoprefixer applies to.
+const CSS_MINIFIERS: Minifier[] = [
+  "clean-css",
+  "sass",
+  "sass-expanded",
+  "less",
+  "less-expanded"
+];
+
+function producesCss(minifier: Minifier): boolean {
+  return CSS_MINIFIERS.includes(minifier);
+}
 
 const SASS_LANGUAGES = ["scss", "sass"];
 const SASS_IN_DIR = "*.{scss,sass}";
@@ -222,7 +251,7 @@ async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
         `${name} → ${outcome.wrote
           .map(
             (w) =>
-              `${w.rel}${w.map ? " +map" : ""} (minify4u.${w.setting}, from ${originOf(config, w.setting)})`
+              `${w.rel}${w.map ? " +map" : ""}${w.prefixed ? " +prefixes" : ""} (minify4u.${w.setting}, from ${originOf(config, w.setting)})`
           )
           .join(" · ")}`
       );
@@ -391,7 +420,18 @@ async function buildDocument(
   }
 
   try {
-    const wantMap = config.get<boolean>("sourceMaps", false);
+    const opts: BuildOptions = {
+      sourceMap: config.get<boolean>("sourceMaps", false),
+      autoprefixer: config.get<boolean>("autoprefixer", false),
+      browserslist: config.get<string[]>("browserslist", [])
+    };
+    if (opts.autoprefixer) {
+      // browserslist caches which config file it found for the process lifetime,
+      // and this process is an editor that stays open for days: without this,
+      // editing .browserslistrc would keep prefixing against the old targets
+      // until VS Code restarts — silently. Verified against the library.
+      browserslist.clearCaches();
+    }
     const wrote: Written[] = [];
 
     for (const a of applied) {
@@ -399,7 +439,7 @@ async function buildDocument(
         a.rule.minifier,
         doc.getText(),
         doc.fileName,
-        wantMap
+        opts
       );
 
       if (result.loadedUrls) {
@@ -426,10 +466,22 @@ async function buildDocument(
       }
       await vscode.workspace.fs.writeFile(target, Buffer.from(code, "utf8"));
       const rel = path.relative(folder.uri.fsPath, target.fsPath);
+      const prefixed = opts.autoprefixer && producesCss(a.rule.minifier);
+      const extras = [
+        result.map ? "+ .map" : "",
+        prefixed
+          ? `prefixed for ${browserTargets(opts, doc.fileName).count} browsers`
+          : ""
+      ].filter(Boolean);
       output.appendLine(
-        `✓ ${path.basename(doc.fileName)} → ${rel}${result.map ? " (+ .map)" : ""}`
+        `✓ ${path.basename(doc.fileName)} → ${rel}${extras.length > 0 ? ` (${extras.join(", ")})` : ""}`
       );
-      wrote.push({ rel, setting: a.setting, map: result.map !== undefined });
+      wrote.push({
+        rel,
+        setting: a.setting,
+        map: result.map !== undefined,
+        prefixed
+      });
     }
 
     return { kind: "written", wrote };
@@ -706,9 +758,10 @@ async function minifyCode(
   minifier: Minifier,
   code: string,
   fileName: string,
-  wantMap: boolean
+  opts: BuildOptions
 ): Promise<MinifyResult> {
   const dir = path.dirname(fileName);
+  const wantMap = opts.sourceMap;
 
   switch (minifier) {
     case "terser": {
@@ -719,8 +772,12 @@ async function minifyCode(
       return { code: result.code };
     }
 
-    case "clean-css":
-      return cleanCss(code);
+    case "clean-css": {
+      // Plain CSS: prefixes go in first, then it is minified. No map here —
+      // a css → css map would only point at the file next to it.
+      const prefixed = await autoprefix({ code }, fileName, opts);
+      return cleanCss(prefixed.code);
+    }
 
     case "sass":
     case "sass-expanded": {
@@ -736,16 +793,20 @@ async function minifyCode(
         // server where the source tree is not deployed.
         sourceMapIncludeSources: wantMap
       });
-      return {
-        code: result.css,
-        map: result.sourceMap,
-        // fileURLToPath throws on anything but file:. Dart Sass does not report
-        // built-in modules such as `sass:math` here, but a custom importer could
-        // hand back another scheme.
-        loadedUrls: result.loadedUrls
-          .filter((url) => url.protocol === "file:")
-          .map((url) => fileURLToPath(url))
-      };
+      return autoprefix(
+        {
+          code: result.css,
+          map: result.sourceMap,
+          // fileURLToPath throws on anything but file:. Dart Sass does not
+          // report built-in modules such as `sass:math` here, but a custom
+          // importer could hand back another scheme.
+          loadedUrls: result.loadedUrls
+            .filter((url) => url.protocol === "file:")
+            .map((url) => fileURLToPath(url))
+        },
+        fileName,
+        opts
+      );
     }
 
     case "less":
@@ -761,31 +822,37 @@ async function minifyCode(
       // other compilers), and it plants a guessed sourceMappingURL comment into
       // the CSS. Undo both here, where the base directory is still known —
       // buildDocument appends the comment with the real map name itself.
-      const absolute = (map: SourceMap): SourceMap => ({
-        ...map,
-        sources: map.sources.map((s) =>
-          path.isAbsolute(s) ? s : path.resolve(dir, s)
-        )
-      });
       const css = rendered.css.replace(
         /\/\*# sourceMappingURL=[^*]*\*\/\s*$/,
         ""
       );
-      if (minifier === "less-expanded") {
-        return {
+      // Prefixes go in before minifying, so clean-css sees the final
+      // declarations and the map is built over the prefixed CSS.
+      const prefixed = await autoprefix(
+        {
           code: css,
           map: rendered.map
-            ? absolute(JSON.parse(rendered.map) as SourceMap)
+            ? absolutizeSources(JSON.parse(rendered.map) as SourceMap, dir)
             : undefined
-        };
+        },
+        fileName,
+        opts
+      );
+      if (minifier === "less-expanded") {
+        return prefixed;
       }
       // Less has no "style" option — it always renders readable CSS, and the
-      // minified variant is that output run through clean-css. The Less map is
-      // handed along so the final map points at the .less source, not at the
-      // readable intermediate; clean-css copies the sources verbatim, so they
-      // are absolutized after the chain.
-      const result = cleanCss(css, rendered.map);
-      return { code: result.code, map: result.map && absolute(result.map) };
+      // minified variant is that output run through clean-css. The map is handed
+      // along so the final one points at the .less source, not at the readable
+      // intermediate.
+      const result = cleanCss(
+        prefixed.code,
+        prefixed.map ? JSON.stringify(prefixed.map) : undefined
+      );
+      return {
+        code: result.code,
+        map: result.map ? absolutizeSources(result.map, dir) : undefined
+      };
     }
 
     case "html":
@@ -810,6 +877,93 @@ async function minifyCode(
       throw new Error(`Unbekannter Minifier: ${String(exhaustive)}`);
     }
   }
+}
+
+// Adds vendor prefixes, threading any existing map through so the result still
+// points at the original source instead of the un-prefixed intermediate.
+// `from` is what lets browserslist discover the project's own config by walking
+// up from the source file; `to` fixes what the emitted sources are relative to.
+async function autoprefix(
+  result: MinifyResult,
+  fileName: string,
+  opts: BuildOptions
+): Promise<MinifyResult> {
+  if (!opts.autoprefixer) {
+    return result;
+  }
+  const processed = await postcss([
+    autoprefixer(
+      opts.browserslist.length > 0
+        ? { overrideBrowserslist: opts.browserslist }
+        : {}
+    )
+  ]).process(result.code, {
+    from: fileName,
+    to: fileName,
+    map: result.map
+      ? {
+          prev: JSON.stringify(result.map),
+          inline: false,
+          // buildDocument appends the comment itself, with the real map name.
+          annotation: false,
+          sourcesContent: true
+        }
+      : false
+  });
+  return {
+    ...result,
+    code: processed.css,
+    map: processed.map
+      ? absolutizeSources(
+          JSON.parse(processed.map.toString()) as SourceMap,
+          path.dirname(fileName)
+        )
+      : result.map
+  };
+}
+
+// Which browsers the prefixing targets, and who decided that. Autoprefixer would
+// silently fall back to browserslist's defaults, which is exactly the kind of
+// invisible decision this extension otherwise refuses to make.
+function browserTargets(
+  opts: BuildOptions,
+  fileName: string
+): { count: number; origin: string } {
+  const dir = path.dirname(fileName);
+  try {
+    if (opts.browserslist.length > 0) {
+      return {
+        count: browserslist(opts.browserslist).length,
+        origin: "minify4u.browserslist"
+      };
+    }
+    const found = browserslist.findConfig(dir);
+    return {
+      count: browserslist(undefined, { path: dir }).length,
+      origin: found
+        ? "the project's browserslist config"
+        : "browserslist defaults"
+    };
+  } catch (err) {
+    // A broken query should be reported by the build itself, not here.
+    return { count: 0, origin: "unresolved" };
+  }
+}
+
+// Compilers report map sources inconsistently: absolute (Dart Sass, via file:
+// URLs) or relative to some base only they know (Less, PostCSS). Pin the
+// relative ones down while the base is still known — serializeMap trusts what
+// it gets and would otherwise emit paths that resolve nowhere.
+function absolutizeSources(map: SourceMap, base: string): SourceMap {
+  return {
+    ...map,
+    sources: map.sources.map((s) => {
+      if (s.startsWith("file:") || path.isAbsolute(s)) {
+        return s;
+      }
+      return path.resolve(base, s);
+    })
+  };
 }
 
 // With an input map (the less → clean-css chain), clean-css consumes it and

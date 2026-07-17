@@ -80,6 +80,38 @@ derselbe Schritt, „expandiert" wäre bloß eine Kopie der Quelle. JSON hat es 
 > `expanded` schreibt eine echte Datei – zeigt es auf einen Ordner mit einer handgeschriebenen
 > `main.css`, wird die überschrieben.
 
+## Vendor-Prefixe
+
+```jsonc
+{ "minify4u.autoprefixer": true }
+```
+
+Standardmäßig aus. Angeschaltet läuft jede CSS-Datei, die Minify4U erzeugt – aus **SCSS,
+Sass, LESS und reinem CSS**, minifiziert wie lesbar – durch
+[Autoprefixer](https://github.com/postcss/autoprefixer). Die Prefixe kommen **vor** dem
+Minifizieren rein, und die Source Maps zeigen weiterhin auf die Originalquelle.
+
+**Die Ziel-Browser kommen aus dem Projekt**, nicht aus einer Einstellung: browserslist sucht
+vom Quelldatei-Pfad aufwärts nach einem `"browserslist"`-Feld in der `package.json` oder
+einer `.browserslistrc`. Das ist Absicht – dieselbe Konfiguration steuert schon dein übriges
+Werkzeug, und zwei Orte für dieselbe Aussage sind einer zu viel. Ohne jede Konfiguration
+greifen die Defaults von browserslist.
+
+Für Projekte ohne eigene browserslist-Konfiguration übersteuert `minify4u.browserslist`:
+
+```jsonc
+{ "minify4u.browserslist": ["> 1%", "last 2 versions", "not dead"] }
+```
+
+Jeder Schreibvorgang nennt, wogegen geprefixt wurde – die Ziele sind nie ein stilles Raten:
+
+```
+✓ styles.scss → assets/css/styles.min.css (+ .map, prefixed for 14 browsers)
+```
+
+Standardmäßig aus, weil Prefixe die ausgelieferten Dateien verändern – das darf nie als
+Nebenwirkung eines Updates ankommen.
+
 ## Source Maps
 
 ```jsonc
@@ -284,8 +316,6 @@ npm run typecheck    # tsc --noEmit
 
 - Output wird **flach** in `savePath` abgelegt (Dateiname der Quelle + `suffix`); die
   Unterordner-Struktur unter dem Glob wird noch nicht gespiegelt.
-- Noch kein Autoprefixer – wer darauf angewiesen ist, braucht weiterhin einen eigenen
-  Sass-Compiler daneben.
 
 ## Lizenz
 

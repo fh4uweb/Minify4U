@@ -138,6 +138,21 @@
           "markdownDescription": "Write a source map (`<output>.css.map`) next to every CSS file compiled from **SCSS, Sass or LESS** — minified and readable alike, including `minify4u.rules` entries that use those compilers. DevTools then point at the original source line instead of the compiled CSS.\n\nSources are referenced relative to the map *and* embedded into it, so the mapping works even where the source tree is not deployed.\n\nOff by default: the maps land next to your output files, and an upload-on-save watcher would deploy them.",
           "scope": "resource"
         },
+        "minify4u.autoprefixer": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Add vendor prefixes (`-webkit-`, `-moz-`, …) to every CSS file Minify4U produces — from **SCSS, Sass, LESS and plain CSS**, minified and readable alike. Prefixes are added *before* minifying, and source maps keep pointing at the original source.\n\nWhich browsers are targeted comes from your project's own **browserslist** config (`package.json`, `.browserslistrc`), searched upwards from the source file. Without one, browserslist's defaults apply — override with `minify4u.browserslist`. The output channel names the number of browsers on every write.\n\nOff by default: prefixes change the files you ship, which should never be a side effect of an update.",
+          "scope": "resource"
+        },
+        "minify4u.browserslist": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Browser targets for `minify4u.autoprefixer`, as [browserslist queries](https://browsersl.ist).\n\nEmpty (the default) = use the project's own browserslist config, or browserslist's defaults if it has none. Set this only for projects that carry no browserslist config of their own — a config in the project is the better place, since other tools read it too.\n\nExample: `[\"> 1%\", \"last 2 versions\", \"not dead\"]`",
+          "scope": "resource"
+        },
         "minify4u.exclude": {
           "type": "array",
           "default": [
@@ -223,10 +238,13 @@
     "package": "vsce package"
   },
   "dependencies": {
+    "autoprefixer": "^10.5.4",
+    "browserslist": "^4.28.6",
     "clean-css": "^5.3.3",
     "html-minifier-terser": "^7.2.0",
     "jsonc-parser": "^3.3.1",
     "less": "^4.6.7",
+    "postcss": "^8.5.19",
     "sass": "^1.101.0",
     "terser": "^5.31.0"
   },

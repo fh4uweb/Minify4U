@@ -7,6 +7,16 @@ versioning follows [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`minify4u.autoprefixer`** — adds vendor prefixes to every CSS Minify4U produces (SCSS,
+  Sass, LESS and plain CSS; minified and readable alike). Default off, since prefixes change
+  the files you ship. Prefixes are added *before* minifying, and source maps are threaded
+  through the extra step, so they still point at the original source rather than at an
+  un-prefixed intermediate.
+  Browser targets come from the **project's own browserslist config** (`package.json`,
+  `.browserslistrc`), searched upwards from the source file — the config your other tooling
+  already reads. **`minify4u.browserslist`** overrides it for projects that carry none.
+  Every write reports what it prefixed against (`prefixed for 14 browsers`), so the targets
+  are never a silent guess.
 - **`minify4u.sourceMaps`** — one switch (default off). When on, every CSS compiled from
   SCSS/Sass/LESS gets a `.css.map` next to it plus the `sourceMappingURL` comment, minified
   and readable output alike, including `minify4u.rules` entries using those compilers.
