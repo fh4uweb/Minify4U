@@ -6,6 +6,13 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.1] – 2026-07-18
+
+### Fixed
+- The editor and explorer context-menu entry read just "Minify Current File", with nothing
+  identifying which extension it belongs to — context menus don't show a command's category.
+  The entry now reads "Minify4U: Minify Current File"; the Command Palette is unchanged.
+
 ## [0.4.0] – 2026-07-17
 
 Replaces a live Sass compiler for the common case: understands partials, writes a readable
