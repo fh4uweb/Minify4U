@@ -257,7 +257,19 @@ completely, for every language:
 }
 ```
 
-The default is `["**/node_modules/**", "**/.vscode/**"]`. Keeping `.vscode` out matters more
+Skipped files are named in the "Minify4U" output channel, so a file that is deliberately ignored
+never looks like a broken extension.
+
+**Build folders deserve an entry here.** The watcher also sees what *build tools* write: if
+`output.javascript` is `*` and esbuild writes `dist/bundle.js`, Minify4U will put
+`dist/bundle.min.js` next to it — output nobody asked for, which then ships. Minify4U therefore
+asks **once per folder per session** when it builds *from* a file inside `dist`, `build` or `out`,
+and the button writes the exclude entry for you. Building *into* such a folder
+(`src/app.js` → `dist/app.min.js`) is what the setting is for and stays quiet.
+
+The default is `["**/node_modules/**", "**/.vscode/**"]` — build folders are deliberately *not* in
+it, because silently refusing to build for anyone whose sources live in `build/` would be worse
+than the problem. Keeping `.vscode` out matters more
 than it looks: VS Code treats its own `settings.json` as JSONC, so without that entry every
 edit to your project configuration would write a minified copy of it into your JSONC output
 folder.

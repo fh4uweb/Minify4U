@@ -264,7 +264,19 @@ für alle Sprachen:
 }
 ```
 
-Default ist `["**/node_modules/**", "**/.vscode/**"]`. Das `.vscode` ist wichtiger, als es
+Übersprungene Dateien nennt der Output-Channel „Minify4U" beim Namen – eine bewusst ignorierte
+Datei sieht so nie wie eine kaputte Extension aus.
+
+**Build-Ordner gehören hier hinein.** Der Watcher sieht auch, was *Build-Werkzeuge* schreiben:
+Steht `output.javascript` auf `*` und esbuild schreibt `dist/bundle.js`, legt Minify4U eine
+`dist/bundle.min.js` daneben – Ausgabe, die niemand bestellt hat und die dann mit ausgeliefert
+wird. Minify4U fragt deshalb **einmal je Ordner und Sitzung** nach, wenn es *aus* einer Datei in
+`dist`, `build` oder `out` baut; der Knopf trägt den exclude-Eintrag selbst ein. *In* einen solchen
+Ordner zu bauen (`src/app.js` → `dist/app.min.js`) ist der Sinn der Einstellung und bleibt still.
+
+Default ist `["**/node_modules/**", "**/.vscode/**"]` – Build-Ordner stehen bewusst **nicht** drin,
+denn still nicht mehr zu bauen, weil jemand seine Quellen in `build/` liegen hat, wäre schlimmer
+als das Problem. Das `.vscode` ist wichtiger, als es
 aussieht: VS Code behandelt seine eigene `settings.json` als JSONC – ohne diesen Eintrag
 würde jede Änderung an der Projektkonfiguration eine minifizierte Kopie davon in den
 JSONC-Ausgabe-Ordner schreiben.

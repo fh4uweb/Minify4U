@@ -6,6 +6,29 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] – 2026-09-10
+
+Stops the watcher from quietly minifying build output.
+
+### Added
+- **Minify4U asks before it keeps building from a build folder.** Since 0.5.0 the watcher also sees
+  what *build tools* write, and a project whose output setting is `*` ends up minifying its own
+  bundle: esbuild writes `dist/extension.js`, Minify4U puts `dist/extension.min.js` next to it, and
+  the file ships inside the package. This extension did it to itself in 0.5.1, and it only surfaced
+  because the `.vsix` had one file too many — nobody would notice this in their own project.
+  Building **from** a file inside `dist`, `build` or `out` now raises one notification per folder
+  per session, with a button that writes `**/<folder>/**` into the project's `minify4u.exclude`.
+  Only the **source** is checked, never the target: `src/app.js` → `dist/app.min.js` is exactly
+  what the setting is for and stays quiet.
+- Files skipped because they match `minify4u.exclude` now say so in the output channel. Until now
+  Minify4U went silent, which is indistinguishable from a broken extension for anyone trying to
+  find out why nothing gets built.
+
+### Note
+A question rather than a new default: adding `dist`/`build`/`out` to the default `minify4u.exclude`
+would work instantly, but it would silently stop building for anyone whose sources live in `build/`
+— the kind of change this project does not ship in an update.
+
 ## [0.5.1] – 2026-09-10
 
 ### Changed

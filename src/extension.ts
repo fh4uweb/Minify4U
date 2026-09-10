@@ -514,6 +514,12 @@ async function handleChange(doc: vscode.TextDocument): Promise<void> {
   const config = vscode.workspace.getConfiguration("minify4u", doc.uri);
 
   if (isExcluded(config, doc, folder)) {
+    // Said out loud, because silence here is indistinguishable from a broken
+    // extension: someone hunting for why nothing is built needs to learn that
+    // the file was deliberately skipped, not overlooked.
+    output.appendLine(
+      `• ${path.basename(doc.fileName)}: ignored — it matches minify4u.exclude`
+    );
     return;
   }
 
@@ -538,6 +544,9 @@ async function handleChange(doc: vscode.TextDocument): Promise<void> {
   if (outcome.kind === "disabled") {
     warnDisabledOnce(config, folder);
     return;
+  }
+  if (outcome.kind === "written") {
+    askAboutBuildFolderOnce(config, doc, folder);
   }
   // Only for languages Minify4U could handle: every other save (.md, .ts, …)
   // reports "no rule" too, and logging those would drown the channel in noise
@@ -570,6 +579,86 @@ function warnDisabledOnce(
     "warn",
     `Nothing was written in "${folder.name}" — minify4u.enable = false, set by ${originOf(config, "enable")}.`
   );
+}
+
+// Folder names that almost always hold generated files rather than sources.
+// Deliberately short: every name here risks being somebody's source folder, and
+// a false positive costs a notification, not a build.
+const BUILD_FOLDERS = ["dist", "build", "out"];
+
+// Asked once per build folder per session, then never again for that folder.
+const buildFolderAsked = new Set<string>();
+
+// Since 0.5.0 the watcher also sees what *build tools* write. A project whose
+// output setting is "*" then minifies its own bundle: esbuild writes
+// dist/extension.js, Minify4U puts dist/extension.min.js next to it, and the
+// file ships inside the package. Nobody notices — this extension did it to
+// itself, and it only came out because the .vsix had one file too many.
+//
+// The fix is deliberately a question, not a decision. Adding dist/build/out to
+// the default exclude would work instantly, but it would silently stop building
+// for anyone whose sources live in build/ — the kind of change this project
+// refuses to ship in an update.
+//
+// Only the *source* is checked, never the target: src/app.js → dist/app.min.js
+// is exactly what the setting is for and must stay quiet.
+function askAboutBuildFolderOnce(
+  config: vscode.WorkspaceConfiguration,
+  doc: vscode.TextDocument,
+  folder: vscode.WorkspaceFolder
+): void {
+  const rel = path.relative(folder.uri.fsPath, doc.fileName);
+  // A source outside the folder cannot be described by a folder-relative glob.
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    return;
+  }
+  const hit = rel
+    .split(/[\\/]/)
+    .slice(0, -1)
+    .find((part) => BUILD_FOLDERS.includes(part.toLowerCase()));
+  if (!hit) {
+    return;
+  }
+
+  const glob = `**/${hit}/**`;
+  if (config.get<string[]>("exclude", []).includes(glob)) {
+    return;
+  }
+  const seen = `${key(folder.uri.fsPath)}::${hit.toLowerCase()}`;
+  if (buildFolderAsked.has(seen)) {
+    return;
+  }
+  buildFolderAsked.add(seen);
+
+  const name = path.basename(doc.fileName);
+  const add = "Add to exclude";
+  void vscode.window
+    .showInformationMessage(
+      `Minify4U built from "${rel.split(/[\\/]/).join("/")}". Is "${hit}" a build folder?`,
+      add,
+      "Keep building it"
+    )
+    .then((pick) => {
+      if (pick !== add) {
+        return;
+      }
+      // Written at folder level so it lands in the project's own
+      // .vscode/settings.json — the answer is about this project, not the user.
+      const next = [...config.get<string[]>("exclude", []), glob];
+      void config
+        .update("exclude", next, vscode.ConfigurationTarget.WorkspaceFolder)
+        .then(
+          () =>
+            output.appendLine(
+              `• ${name}: "${glob}" added to minify4u.exclude — this folder is no longer built`
+            ),
+          (err: unknown) =>
+            void tell(
+              "warn",
+              `Could not write minify4u.exclude: ${err instanceof Error ? err.message : String(err)}`
+            )
+        );
+    });
 }
 
 // Compiles/minifies one document and writes the result. `onlyIfImports` is set
