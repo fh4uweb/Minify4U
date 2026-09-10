@@ -246,6 +246,36 @@ Each of these settings takes a folder path relative to the folder root:
 > Languages without a built-in mapping must be configured via `minify4u.rules`;
 > otherwise a message appears in the "Minify4U" output channel.
 
+### When `*` is inherited
+
+`*` is the only output value without a fixed target — it writes **beside the source**, whatever
+folder that happens to be. Set once in your user settings, it therefore applies to projects you
+never thought about, and since the watcher also sees what *build tools* write, it reaches folders
+nobody meant to touch: esbuild writes `dist/bundle.js`, and a `bundle.min.js` appears next to it.
+
+So the first time Minify4U writes with an **inherited** `*`, it asks — once per setting and project:
+
+```
+Minify4U put app.min.js next to its source, in "dist" — minify4u.output.javascript
+is "*", inherited from your user settings. "dist" looks like a build folder.
+What should apply in "my-project"?
+
+  [Keep it here]   [Choose folder…]   [Don't minify here]
+```
+
+| Answer | writes into the project's settings |
+|---|---|
+| Keep it here | `"*"` — unchanged behaviour, just no longer inherited |
+| Choose folder… | the picked folder, relative to the project root |
+| Don't minify here | `""` — this language is off in this project |
+
+Every answer makes the value **explicit**, so the question never returns — not in this session and
+not in any later one. Entries from `minify4u.rules` never raise it: those are written by hand,
+which is a decision rather than an inheritance.
+
+Turning building off leaves whatever the previous build wrote where it is; the output channel names
+the file, and you delete it yourself. Minify4U never removes files on its own.
+
 ### Excluding files
 
 `minify4u.exclude` takes globs (relative to the folder root) that Minify4U ignores
@@ -260,16 +290,10 @@ completely, for every language:
 Skipped files are named in the "Minify4U" output channel, so a file that is deliberately ignored
 never looks like a broken extension.
 
-**Build folders deserve an entry here.** The watcher also sees what *build tools* write: if
-`output.javascript` is `*` and esbuild writes `dist/bundle.js`, Minify4U will put
-`dist/bundle.min.js` next to it — output nobody asked for, which then ships. Minify4U therefore
-asks **once per folder per session** when it builds *from* a file inside `dist`, `build` or `out`,
-and the button writes the exclude entry for you. Building *into* such a folder
-(`src/app.js` → `dist/app.min.js`) is what the setting is for and stays quiet.
-
 The default is `["**/node_modules/**", "**/.vscode/**"]` — build folders are deliberately *not* in
 it, because silently refusing to build for anyone whose sources live in `build/` would be worse
-than the problem. Keeping `.vscode` out matters more
+than the problem. See [When `*` is inherited](#when--is-inherited) for how that case is handled
+instead. Keeping `.vscode` out matters more
 than it looks: VS Code treats its own `settings.json` as JSONC, so without that entry every
 edit to your project configuration would write a minified copy of it into your JSONC output
 folder.

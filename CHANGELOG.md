@@ -6,6 +6,27 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] – 2026-09-10
+
+Asks about the inherited setting instead of about one folder.
+
+### Changed
+- **The build-folder question from 0.6.0 is replaced by a better one.** It asked *"is `dist` a build
+  folder?"* and offered to exclude it — one folder at a time, in every project, forever. The real
+  ambiguity lies elsewhere: `*` is the only output setting without a fixed target, it writes beside
+  the source *whatever folder that happens to be*, and inherited from the user settings it applies
+  to projects nobody ever thought about.
+  Minify4U now asks **once per setting and project**, the first time it writes with an inherited
+  `*`: **Keep it here** · **Choose folder…** (a folder picker, stored relative to the project root)
+  · **Don't minify here**. Every answer writes an *explicit* value into the project's settings, so
+  nothing there stays inherited — and the question never returns, in this or any later session.
+  A source sitting in `dist`, `build` or `out` adds a hint to the message; it no longer drives a
+  question of its own.
+- Rules from `minify4u.rules` never raise the question — those are written by hand, which is a
+  decision, not an inheritance.
+- Output written by a previous build is named in the output channel when the answer turns building
+  off, so stale files do not survive unnoticed. Minify4U still never deletes anything on its own.
+
 ## [0.6.0] – 2026-09-10
 
 Stops the watcher from quietly minifying build output.

@@ -546,7 +546,7 @@ async function handleChange(doc: vscode.TextDocument): Promise<void> {
     return;
   }
   if (outcome.kind === "written") {
-    askAboutBuildFolderOnce(config, doc, folder);
+    askAboutInheritedOutputOnce(config, doc, folder, outcome.wrote);
   }
   // Only for languages Minify4U could handle: every other save (.md, .ts, …)
   // reports "no rule" too, and logging those would drown the channel in noise
@@ -582,83 +582,144 @@ function warnDisabledOnce(
 }
 
 // Folder names that almost always hold generated files rather than sources.
-// Deliberately short: every name here risks being somebody's source folder, and
-// a false positive costs a notification, not a build.
+// Not a rule, only a hint in the notification's text: every name here could be
+// somebody's source folder, and being wrong must not cost anyone a build.
 const BUILD_FOLDERS = ["dist", "build", "out"];
 
-// Asked once per build folder per session, then never again for that folder.
-const buildFolderAsked = new Set<string>();
+// Asked once per setting per folder per session, then never again — and once
+// answered, the explicit value it writes keeps it quiet forever.
+const inheritedAsked = new Set<string>();
 
-// Since 0.5.0 the watcher also sees what *build tools* write. A project whose
-// output setting is "*" then minifies its own bundle: esbuild writes
-// dist/extension.js, Minify4U puts dist/extension.min.js next to it, and the
-// file ships inside the package. Nobody notices — this extension did it to
-// itself, and it only came out because the .vsix had one file too many.
+// `*` is the one output setting without a fixed target: it writes beside the
+// source, whatever folder that happens to be. Inherited from the user settings
+// it therefore applies to projects nobody thought about — and since 0.5.0 the
+// watcher also sees what *build tools* write, so it reaches folders no one meant
+// to touch. This extension minified its own dist/extension.js that way, and it
+// only surfaced because the .vsix had one file too many.
 //
-// The fix is deliberately a question, not a decision. Adding dist/build/out to
-// the default exclude would work instantly, but it would silently stop building
-// for anyone whose sources live in build/ — the kind of change this project
-// refuses to ship in an update.
+// So the question is asked where the ambiguity actually is — not "should I skip
+// this folder?" (which treats the symptom, one folder at a time) but "is the
+// inherited value what you want here?". Every answer writes an explicit value
+// into the project, after which nothing about it is inherited or surprising.
 //
-// Only the *source* is checked, never the target: src/app.js → dist/app.min.js
-// is exactly what the setting is for and must stay quiet.
-function askAboutBuildFolderOnce(
+// Deliberately not a changed default: excluding dist/build/out out of the box
+// would silently stop building for anyone whose sources live there.
+function askAboutInheritedOutputOnce(
   config: vscode.WorkspaceConfiguration,
   doc: vscode.TextDocument,
-  folder: vscode.WorkspaceFolder
+  folder: vscode.WorkspaceFolder,
+  wrote: Written[]
 ): void {
-  const rel = path.relative(folder.uri.fsPath, doc.fileName);
-  // A source outside the folder cannot be described by a folder-relative glob.
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+  for (const written of wrote) {
+    // `rules` entries are written by hand — that is a decision, not an
+    // inheritance, and second-guessing it would be noise.
+    if (written.setting === "rules") {
+      continue;
+    }
+    if (config.get<string>(written.setting) !== "*") {
+      continue;
+    }
+    // Inherited means: nothing in this workspace or folder says otherwise.
+    const state = config.inspect<string>(written.setting);
+    if (
+      state?.workspaceFolderValue !== undefined ||
+      state?.workspaceValue !== undefined
+    ) {
+      continue;
+    }
+
+    const seen = `${key(folder.uri.fsPath)}::${written.setting}`;
+    if (inheritedAsked.has(seen)) {
+      continue;
+    }
+    inheritedAsked.add(seen);
+    void offerExplicitOutput(config, doc, folder, written);
+    // One question at a time: a second language would queue a second dialog on
+    // top of this one, and both write to the same file.
     return;
   }
-  const hit = rel
-    .split(/[\\/]/)
-    .slice(0, -1)
-    .find((part) => BUILD_FOLDERS.includes(part.toLowerCase()));
-  if (!hit) {
+}
+
+async function offerExplicitOutput(
+  config: vscode.WorkspaceConfiguration,
+  doc: vscode.TextDocument,
+  folder: vscode.WorkspaceFolder,
+  written: Written
+): Promise<void> {
+  const dir = path.basename(path.dirname(doc.fileName));
+  const looksGenerated = BUILD_FOLDERS.includes(dir.toLowerCase());
+  const keep = "Keep it here";
+  const choose = "Choose folder…";
+  const off = "Don't minify here";
+
+  const pick = await vscode.window.showInformationMessage(
+    `Minify4U put ${written.rel.split(/[\\/]/).pop()} next to its source, in "${dir}" — ` +
+      `minify4u.${written.setting} is "*", inherited from ${originOf(config, written.setting)}.` +
+      (looksGenerated ? ` "${dir}" looks like a build folder.` : "") +
+      ` What should apply in "${folder.name}"?`,
+    keep,
+    choose,
+    off
+  );
+  if (!pick) {
     return;
   }
 
-  const glob = `**/${hit}/**`;
-  if (config.get<string[]>("exclude", []).includes(glob)) {
-    return;
-  }
-  const seen = `${key(folder.uri.fsPath)}::${hit.toLowerCase()}`;
-  if (buildFolderAsked.has(seen)) {
-    return;
-  }
-  buildFolderAsked.add(seen);
-
-  const name = path.basename(doc.fileName);
-  const add = "Add to exclude";
-  void vscode.window
-    .showInformationMessage(
-      `Minify4U built from "${rel.split(/[\\/]/).join("/")}". Is "${hit}" a build folder?`,
-      add,
-      "Keep building it"
-    )
-    .then((pick) => {
-      if (pick !== add) {
-        return;
-      }
-      // Written at folder level so it lands in the project's own
-      // .vscode/settings.json — the answer is about this project, not the user.
-      const next = [...config.get<string[]>("exclude", []), glob];
-      void config
-        .update("exclude", next, vscode.ConfigurationTarget.WorkspaceFolder)
-        .then(
-          () =>
-            output.appendLine(
-              `• ${name}: "${glob}" added to minify4u.exclude — this folder is no longer built`
-            ),
-          (err: unknown) =>
-            void tell(
-              "warn",
-              `Could not write minify4u.exclude: ${err instanceof Error ? err.message : String(err)}`
-            )
-        );
+  let value: string | undefined;
+  if (pick === keep) {
+    value = "*";
+  } else if (pick === off) {
+    value = "";
+  } else {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFolders: true,
+      canSelectFiles: false,
+      canSelectMany: false,
+      defaultUri: folder.uri,
+      openLabel: "Use as output folder"
     });
+    if (!picked?.[0]) {
+      return;
+    }
+    const rel = path.relative(folder.uri.fsPath, picked[0].fsPath);
+    // savePath is always relative to the folder root, so a target outside it
+    // cannot be expressed — better to say so than to write a broken "..\..".
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+      void tell(
+        "warn",
+        `That folder is outside "${folder.name}" — the output folder has to be inside the project. Nothing was changed.`
+      );
+      return;
+    }
+    // The project root itself is "" as a relative path, which would read as
+    // "disabled"; "." says root and keeps the two apart.
+    value = rel === "" ? "." : rel.split(path.sep).join("/");
+  }
+
+  try {
+    await config.update(
+      written.setting,
+      value,
+      vscode.ConfigurationTarget.WorkspaceFolder
+    );
+  } catch (err) {
+    void tell(
+      "warn",
+      `Could not write minify4u.${written.setting}: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return;
+  }
+
+  output.appendLine(
+    `• minify4u.${written.setting} set to ${value === "" ? '"" (off)' : `"${value}"`} for "${folder.name}"`
+  );
+  if (value !== "*") {
+    // Never deleted on the extension's own initiative — but leaving it there
+    // without a word is how stale build output survives unnoticed.
+    output.appendLine(
+      `  ↳ ${written.rel.split(/[\\/]/).join("/")} from the previous build is still there — remove it by hand if you don't want it.`
+    );
+  }
 }
 
 // Compiles/minifies one document and writes the result. `onlyIfImports` is set

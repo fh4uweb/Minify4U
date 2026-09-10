@@ -253,6 +253,38 @@ Jede dieser Einstellungen nimmt einen Ordner-Pfad relativ zum Ordner-Root entgeg
 > Sprachen ohne Standard-Zuordnung müssen über `minify4u.rules` konfiguriert werden;
 > ansonsten erscheint eine Meldung im Output-Channel „Minify4U".
 
+### Wenn `*` geerbt ist
+
+`*` ist der einzige Ausgabe-Wert **ohne festes Ziel** – geschrieben wird **neben die Quelle**, in
+welchem Ordner die auch immer liegt. Einmal in den Benutzer-Einstellungen gesetzt, gilt das für
+Projekte, an die man dabei nie gedacht hat; und weil der Watcher auch sieht, was *Build-Werkzeuge*
+schreiben, erreicht es Ordner, die niemand gemeint hat: esbuild schreibt `dist/bundle.js`, und
+daneben erscheint eine `bundle.min.js`.
+
+Deshalb fragt Minify4U beim ersten Schreiben mit einem **geerbten** `*` nach – einmal je
+Einstellung und Projekt:
+
+```
+Minify4U put app.min.js next to its source, in "dist" — minify4u.output.javascript
+is "*", inherited from your user settings. "dist" looks like a build folder.
+What should apply in "mein-projekt"?
+
+  [Keep it here]   [Choose folder…]   [Don't minify here]
+```
+
+| Antwort | schreibt in die Projekt-Einstellungen |
+|---|---|
+| Keep it here | `"*"` – unverändertes Verhalten, nur nicht mehr geerbt |
+| Choose folder… | den gewählten Ordner, relativ zum Projekt-Root |
+| Don't minify here | `""` – diese Sprache ist im Projekt aus |
+
+Jede Antwort macht den Wert **explizit** – die Frage kommt nie wieder, weder in dieser Sitzung noch
+in einer späteren. Einträge aus `minify4u.rules` lösen sie nie aus: Die sind von Hand geschrieben,
+also eine Entscheidung und keine Vererbung.
+
+Wird das Bauen abgeschaltet, bleibt liegen, was der vorherige Durchlauf geschrieben hat; der
+Output-Channel nennt die Datei, gelöscht wird sie von Hand. **Minify4U löscht nie selbst.**
+
 ### Dateien ausschließen
 
 `minify4u.exclude` nimmt Globs (relativ zum Ordner-Root), die Minify4U komplett ignoriert –
@@ -267,16 +299,10 @@ für alle Sprachen:
 Übersprungene Dateien nennt der Output-Channel „Minify4U" beim Namen – eine bewusst ignorierte
 Datei sieht so nie wie eine kaputte Extension aus.
 
-**Build-Ordner gehören hier hinein.** Der Watcher sieht auch, was *Build-Werkzeuge* schreiben:
-Steht `output.javascript` auf `*` und esbuild schreibt `dist/bundle.js`, legt Minify4U eine
-`dist/bundle.min.js` daneben – Ausgabe, die niemand bestellt hat und die dann mit ausgeliefert
-wird. Minify4U fragt deshalb **einmal je Ordner und Sitzung** nach, wenn es *aus* einer Datei in
-`dist`, `build` oder `out` baut; der Knopf trägt den exclude-Eintrag selbst ein. *In* einen solchen
-Ordner zu bauen (`src/app.js` → `dist/app.min.js`) ist der Sinn der Einstellung und bleibt still.
-
 Default ist `["**/node_modules/**", "**/.vscode/**"]` – Build-Ordner stehen bewusst **nicht** drin,
 denn still nicht mehr zu bauen, weil jemand seine Quellen in `build/` liegen hat, wäre schlimmer
-als das Problem. Das `.vscode` ist wichtiger, als es
+als das Problem. Wie dieser Fall stattdessen gelöst ist, steht unter
+[Wenn `*` geerbt ist](#wenn--geerbt-ist). Das `.vscode` ist wichtiger, als es
 aussieht: VS Code behandelt seine eigene `settings.json` als JSONC – ohne diesen Eintrag
 würde jede Änderung an der Projektkonfiguration eine minifizierte Kopie davon in den
 JSONC-Ausgabe-Ordner schreiben.
