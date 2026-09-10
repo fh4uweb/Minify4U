@@ -6,6 +6,11 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] – 2026-09-10
+
+### Changed
+- New extension icon.
+
 ## [0.5.0] – 2026-09-10
 
 Builds on **any** change to a source file, not only on an editor save.

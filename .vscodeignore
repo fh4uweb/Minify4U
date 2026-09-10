@@ -10,6 +10,11 @@ esbuild.js
 tsconfig.json
 **/*.map
 **/*.ts
+
+# Minify4U minifiziert seit 0.5.0 den eigenen esbuild-Output: der Watcher sieht
+# dist/extension.js entstehen und legt extension.min.js daneben. Geladen wird nur
+# extension.js ("main"), die Minifizierte ist reiner Ballast im Paket.
+dist/*.min.js
 _CHANGELOG-MINIFY4U.md
 CLAUDE.md
 
