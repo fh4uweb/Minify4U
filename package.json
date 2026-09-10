@@ -1,8 +1,8 @@
 {
   "name": "minify4u",
   "displayName": "Minify4U",
-  "description": "Minify source files (JS/CSS/SCSS/SASS/LESS/HTML/JSON) on save and write the output to a path that is freely configurable per file type.",
-  "version": "0.4.1",
+  "description": "Minify source files (JS/CSS/SCSS/SASS/LESS/HTML/JSON) whenever they change and write the output to a path that is freely configurable per file type.",
+  "version": "0.5.0",
   "publisher": "4uweb",
   "license": "MIT",
   "author": {
@@ -19,11 +19,17 @@
   ],
   "keywords": [
     "minify",
+    "minify on save",
+    "build on save",
+    "minifier",
     "terser",
     "sass",
     "scss",
     "less",
     "css",
+    "compile scss",
+    "live sass",
+    "output path",
     "autoprefixer",
     "source map"
   ],
@@ -68,8 +74,22 @@
         "minify4u.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Minify4U on save.",
+          "description": "Enable Minify4U.",
           "scope": "resource"
+        },
+        "minify4u.trigger": {
+          "type": "string",
+          "enum": [
+            "watch",
+            "save"
+          ],
+          "enumDescriptions": [
+            "Build whenever the file changes on disk — an editor save, but also a write by another tool, a script or a code assistant.",
+            "Build only on an editor save. Use this where file watchers are unreliable, e.g. some Remote-SSH, WSL or network-drive setups."
+          ],
+          "default": "watch",
+          "markdownDescription": "What makes Minify4U build.\n\n`watch` (default) uses a file-system watcher, so files written **outside the editor** build too. `save` listens for editor saves only — the behaviour up to v0.4.1.\n\nThe two are mutually exclusive: only one is ever active.",
+          "scope": "window"
         },
         "minify4u.output.javascript": {
           "type": "string",

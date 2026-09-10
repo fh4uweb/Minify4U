@@ -6,6 +6,41 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] – 2026-09-10
+
+Builds on **any** change to a source file, not only on an editor save.
+
+### Added
+- **File-system watcher.** Until now Minify4U listened to `onDidSaveTextDocument` alone, so
+  only an editor save produced output. Anything writing a file another way — a script, a
+  formatter, `sed`, a code assistant editing files directly — changed the source and never
+  reached the output. That failure is silent and expensive: the source looks updated, the
+  built file is stale, and an upload-on-save watcher happily deploys the mismatch.
+- **`minify4u.trigger`** — `watch` (default) or `save`. The two are mutually exclusive, so a
+  save never builds twice and no de-duplication is involved. `save` restores the pre-0.5.0
+  behaviour for setups where file watchers are unreliable (some Remote-SSH, WSL and
+  network-drive configurations).
+- Every glob in `minify4u.rules` gets a watcher of its own, alongside the one for the known
+  extensions. Rules may point at any file at all (`sftp.jsonc`, `*.txt`), and without this
+  those would be exactly the files the watcher never sees. Patterns are re-derived when the
+  configuration or the workspace folder list changes.
+
+### Fixed
+- Nothing Minify4U writes can trigger a build of its own. Every output path is registered
+  before the write and ignored for a moment afterwards. Without it, a compiled `main.css`
+  reads as a fresh CSS source and yields a `main.min.css` nobody configured — which then
+  ships. The existing already-minified check stops such a chain from running away, but only
+  this stops it from starting.
+- A file whose editor buffer has unsaved changes is skipped, with a line in the output
+  channel. Its buffer and the file on disk differ, and building the buffer would produce
+  output matching neither; the buffer's own save triggers the build.
+
+### Changed
+- Events are debounced per path (150 ms), so the burst a single write produces becomes one
+  build.
+- `node_modules` and `.git` are dropped before a document is even opened — a checkout or an
+  `npm install` would otherwise push thousands of files through the pipeline.
+
 ## [0.4.1] – 2026-07-18
 
 ### Fixed

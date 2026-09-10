@@ -2,11 +2,32 @@
 
 [**English**](README.md) · [Deutsch](README.de.md)
 
-A VS Code extension that **minifies source files on save** and writes the output to a
-**path that is freely configurable per file type**.
+[![Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/4uweb.minify4u?label=Marketplace&color=1f8ceb)](https://marketplace.visualstudio.com/items?itemName=4uweb.minify4u)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/4uweb.minify4u)](https://marketplace.visualstudio.com/items?itemName=4uweb.minify4u)
+[![Rating](https://img.shields.io/visual-studio-marketplace/r/4uweb.minify4u)](https://marketplace.visualstudio.com/items?itemName=4uweb.minify4u&ssr=false#review-details)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+A VS Code extension that **minifies source files whenever they change** and writes the output
+to a **path that is freely configurable per file type**.
 
 Unlike minifiers that only write *next to* the source, Minify4U routes each file type into
 its own output folder — e.g. sources in `src/` compiled and minified into `assets/`.
+
+## Why Minify4U?
+
+It combines what usually takes two tools — a minifier *and* a CSS compiler — and adds the one
+thing both tend to miss: a freely configurable output path per file type.
+
+| | **Minify4U** | Other minifiers | Other CSS compilers |
+|---|:---:|:---:|:---:|
+| Freely configurable output path per file type | ✅ | – | CSS only |
+| Minifies JS / CSS / HTML / JSON | ✅ | ✅ | – |
+| Compiles SCSS / Sass / LESS | ✅ | – | ✅ |
+| Readable **and** minified CSS from one build | ✅ | – | – |
+| Source maps for compiled CSS | ✅ | – | ✅ |
+| Autoprefixer | ✅ | – | ✅ |
+| Sass partials — rebuild only dependents | ✅ | – | – |
+| Also builds files written **outside the editor** | ✅ | – | – |
 
 ## Supported languages
 
@@ -19,9 +40,32 @@ its own output folder — e.g. sources in `src/` compiled and minified into `ass
 | HTML         | html-minifier-terser | minify                | `.min.html`|
 | JSON / JSONC | jsonc-parser         | minify (compact)      | `.min.json`|
 
+## When it builds
+
+Minify4U watches the file system, so a build is triggered by **any** change to a source file —
+an editor save, a `sed` in the terminal, a script, a formatter, a code assistant writing the
+file directly. Tools that write files without going through the editor are the reason: their
+changes used to land in the source and never reach the output.
+
+```jsonc
+{ "minify4u.trigger": "watch" }  // default
+{ "minify4u.trigger": "save" }   // editor saves only — the behaviour up to v0.4.1
+```
+
+The two are **mutually exclusive**, so a save never builds twice. Switch to `save` where file
+watchers are unreliable — some Remote-SSH, WSL and network-drive setups.
+
+Minify4U never reacts to its **own** output: every file it writes is announced beforehand and
+ignored for a moment. Without that, a compiled `main.css` would look like a fresh CSS source
+and produce a `main.min.css` nobody asked for.
+
+> **A file open in the editor with unsaved changes is skipped**, and the output channel says
+> so. The buffer and the file on disk differ then, and building the buffer would produce
+> output matching neither. Saving it triggers the build as usual.
+
 ## How it works
 
-On every save, Minify4U picks the rule to apply:
+On every change, Minify4U picks the rule to apply:
 
 1. **`minify4u.rules`** — the **first** matching rule (by `glob` or `type`) wins.
 2. If no rule matches, **`minify4u.output.<language>`** is used — plus
@@ -33,12 +77,12 @@ The file is then minified with the matching minifier and written to the target f
 **Already-minified files are skipped.** Saving `app.min.js` does *not* produce
 `app.min.min.js`, and vendor bundles you merely open and save are left alone. A file counts
 as already minified when its name ends with the rule's `suffix`, or when its base name ends
-with `.min`. Skipped saves are reported in the "Minify4U" output channel.
+with `.min`. Skipped builds are reported in the "Minify4U" output channel.
 
 ## Asking on demand
 
-Saving is quiet unless there is something to report — otherwise the output channel would
-fill up in every project. But that makes a save that does nothing ambiguous: not configured,
+Building is quiet unless there is something to report — otherwise the output channel would
+fill up in every project. But that makes a build that does nothing ambiguous: not configured,
 switched off, or broken?
 
 The command **`Minify4U: Minify Current File`** (Command Palette) is the deliberate question.
@@ -50,7 +94,7 @@ It runs the same pipeline on the active file and **always** answers, as a notifi
 - `_header.scss is a partial — rebuilt styles.scss.`
 - `app.min.js is already minified — skipped.`
 
-Errors always surface as a notification, on save as well.
+Errors always surface as a notification, on an automatic build as well.
 
 ## Readable CSS next to the minified file
 
@@ -69,10 +113,10 @@ Like every `output.*` setting, this is **per language, not per file**: it applie
 `.scss` in the folder. To single out one file, use a `minify4u.rules` entry with the
 `sass-expanded` minifier.
 
-Both settings are independent, take the same values (folder · `*` · empty), and one save
+Both settings are independent, take the same values (folder · `*` · empty), and one change
 produces whichever you asked for:
 
-- **Both set** — the minified *and* the readable file, from a single save.
+- **Both set** — the minified *and* the readable file, from a single build.
 - **Only `expanded`** — readable CSS only. This is the setup that replaces a dedicated Sass
   compiler whose job was to write one plain `.css`.
 - **Only `output`** — the classic build, unchanged.
@@ -132,14 +176,14 @@ the source tree is not deployed.
 
 Off by default because the maps land next to your output files: an upload-on-save watcher
 would deploy them, and nobody should get surprise files from an update. Turning the switch
-off again removes the comment on the next save, but already written `.map` files stay —
+off again removes the comment on the next build, but already written `.map` files stay —
 delete them once by hand.
 
 ## Sass partials
 
 A partial (`_variables.scss`) is not a stylesheet of its own — compiling it alone would emit
 a fragment, or nothing at all when it only defines variables and mixins. Minify4U therefore
-**never compiles a partial directly**. Saving one rebuilds the main files that import it —
+**never compiles a partial directly**. Changing one rebuilds the main files that import it —
 including indirectly, through other partials.
 
 The dependencies are not guessed from `@use`/`@import`: Dart Sass reports every file it
@@ -147,7 +191,7 @@ actually loaded, and Minify4U reverses that. Two details worth knowing:
 
 - **Only main files that really import the partial are written.** Others are left untouched,
   so an upload-on-save watcher does not redeploy stylesheets that did not change.
-- **On the first partial save after a restart** the dependencies are still unknown. Minify4U
+- **On the first partial build after a restart** the dependencies are still unknown. Minify4U
   then walks up from the partial to the first directory containing a non-partial and treats
   that subtree as the candidates — so `.scss` elsewhere in the project (a parent theme, say)
   is never touched.
@@ -194,7 +238,7 @@ Each of these settings takes a folder path relative to the folder root:
 | `minify4u.expanded.less`    | less       | **compile**, readable| `.css`     |
 
 > The `expanded.*` settings work alongside their `output.*` counterpart — set both to get
-> both files from one save. See [Readable CSS next to the minified file](#readable-css-next-to-the-minified-file).
+> both files from one build. See [Readable CSS next to the minified file](#readable-css-next-to-the-minified-file).
 
 > Leave `minify4u.output.scss` **empty** if a dedicated Sass compiler already handles your
 > SCSS — otherwise both tools compile the same file.
@@ -300,8 +344,9 @@ Rules take **precedence** over `minify4u.output.<language>`:
 
 ## Multi-root workspaces
 
-Every Minify4U setting is **resource-scoped**: the configuration is read for the saved file,
-so each root folder in a multi-root workspace can use its own values. One project writes to
+Every Minify4U setting except `minify4u.trigger` is **resource-scoped**: the configuration is
+read for the changed file, so each root folder in a multi-root workspace can use its own
+values. One project writes to
 `assets/js`, the next to `dist/scripts`, a third disables CSS entirely — same setting, three
 answers.
 

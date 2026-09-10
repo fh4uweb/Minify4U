@@ -148,6 +148,26 @@ const SASS_LANGUAGES = ["scss", "sass"];
 const SASS_IN_DIR = "*.{scss,sass}";
 const SASS_IN_TREE = "**/*.{scss,sass}";
 
+// Extensions the language defaults can build from — the watcher's base pattern.
+// `minify4u.rules` may point a glob at anything at all (sftp.jsonc, *.txt), so
+// every configured glob gets a watcher of its own on top of this one.
+const WATCHED_GLOB = "**/*.{js,mjs,cjs,css,scss,sass,less,html,htm,json,jsonc}";
+
+// Checked before the document is opened: a checkout or an npm install would
+// otherwise push thousands of files through the pipeline. Deliberately short —
+// "dist"/"build"/"vendor" are excluded from this list because they are somebody's
+// source folder often enough, and minify4u.exclude is the setting for that.
+const NEVER_WATCHED = ["node_modules", ".git"];
+
+// How long a file Minify4U wrote itself stays invisible to the watcher. Long
+// enough to cover the event round-trip, short enough that a real edit right
+// afterwards is not swallowed.
+const SELF_WRITE_TTL_MS = 3000;
+
+// Collapses the burst of events a single write produces (create + change, plus
+// whatever an upload-on-save watcher triggers on top).
+const DEBOUNCE_MS = 150;
+
 let output: vscode.OutputChannel;
 
 // Which files a compiled main file pulled in, reported by Dart Sass itself
@@ -159,13 +179,38 @@ const sassDeps = new Map<string, Set<string>>();
 // not repeat on every save. Reset whenever the setting changes.
 const disabledWarned = new Set<string>();
 
+// Everything Minify4U has just written, so the watcher cannot react to the
+// extension's own output. Filled *before* the write, because the event can
+// arrive while writeFile is still awaited.
+//
+// This is the one mechanism the whole watcher hinges on: a naive watcher sees
+// main.scss → main.css, treats that CSS as a source, and builds main.min.css
+// from it — output nobody asked for, shipped by an upload-on-save watcher a
+// second later. isAlreadyMinified() catches the *next* round and keeps it from
+// running away forever, but only this stops the phantom build.
+const selfWritten = new Map<string, number>();
+
+// One pending build per path, so a burst of events becomes a single build.
+const pending = new Map<string, ReturnType<typeof setTimeout>>();
+
+// Disposed and rebuilt whenever the configuration or the folder list changes —
+// the set of patterns is derived from minify4u.rules, which can change at
+// runtime.
+let watchers: vscode.Disposable[] = [];
+
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Minify4U");
   context.subscriptions.push(output);
 
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      void handleSave(doc);
+      // The two triggers are mutually exclusive on purpose: with both live, an
+      // editor save fires this *and* the file event, and every save would build
+      // twice. Keeping them exclusive means no de-duplication is needed at all.
+      if (triggerMode() !== "save") {
+        return;
+      }
+      void handleChange(doc);
     })
   );
 
@@ -186,10 +231,152 @@ export function activate(context: vscode.ExtensionContext): void {
       // were collected from.
       disabledWarned.clear();
       sassDeps.clear();
+      setUpWatchers();
     })
   );
 
+  // A folder added to the workspace brings its own .vscode/settings.json, and
+  // with it possibly its own rules — so the patterns have to be re-derived.
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => setUpWatchers())
+  );
+
+  context.subscriptions.push({ dispose: disposeWatchers });
+
+  setUpWatchers();
   output.appendLine("Minify4U activated.");
+}
+
+function triggerMode(): string {
+  // Read without a resource: the trigger decides how the extension listens at
+  // all, which cannot sensibly differ per folder within one window.
+  return vscode.workspace
+    .getConfiguration("minify4u")
+    .get<string>("trigger", "watch");
+}
+
+function disposeWatchers(): void {
+  for (const w of watchers) {
+    w.dispose();
+  }
+  watchers = [];
+}
+
+// Watches every pattern Minify4U could have something to say about: the known
+// extensions, plus each glob from minify4u.rules across all workspace folders.
+// A pattern too many is harmless — handleChange drops what has no rule — while
+// a missing one means a file silently never builds, which is the exact failure
+// this watcher exists to end.
+function setUpWatchers(): void {
+  disposeWatchers();
+
+  if (triggerMode() !== "watch") {
+    output.appendLine("Trigger: editor save (minify4u.trigger = save).");
+    return;
+  }
+
+  const globs = new Set<string>([WATCHED_GLOB]);
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    const rules = vscode.workspace
+      .getConfiguration("minify4u", folder.uri)
+      .get<Rule[]>("rules", []);
+    for (const rule of rules) {
+      if (rule.glob) {
+        globs.add(rule.glob);
+      }
+    }
+  }
+
+  for (const glob of globs) {
+    const watcher = vscode.workspace.createFileSystemWatcher(glob);
+    watchers.push(
+      watcher,
+      watcher.onDidCreate(onFileEvent),
+      watcher.onDidChange(onFileEvent)
+      // No onDidDelete: a deleted source has nothing to build, and removing its
+      // generated output is the user's call, not the extension's.
+    );
+  }
+
+  output.appendLine(
+    `Trigger: file watcher, ${globs.size} pattern${globs.size === 1 ? "" : "s"}.`
+  );
+}
+
+function onFileEvent(uri: vscode.Uri): void {
+  if (uri.scheme !== "file") {
+    return;
+  }
+  const parts = uri.fsPath.split(/[\\/]/);
+  if (parts.some((part) => NEVER_WATCHED.includes(part))) {
+    return;
+  }
+  if (isSelfWritten(uri.fsPath)) {
+    return;
+  }
+
+  const k = key(uri.fsPath);
+  const running = pending.get(k);
+  if (running) {
+    clearTimeout(running);
+  }
+  pending.set(
+    k,
+    setTimeout(() => {
+      pending.delete(k);
+      void buildFromDisk(uri);
+    }, DEBOUNCE_MS)
+  );
+}
+
+async function buildFromDisk(uri: vscode.Uri): Promise<void> {
+  // Re-checked after the debounce: a build kicked off by an earlier event may
+  // have written this very file while the timer was running.
+  if (isSelfWritten(uri.fsPath)) {
+    return;
+  }
+
+  let doc: vscode.TextDocument;
+  try {
+    doc = await vscode.workspace.openTextDocument(uri);
+  } catch {
+    // Deleted again, still being written, or not text at all — nothing to build.
+    return;
+  }
+
+  // An open editor hands back its *buffer*, not the file on disk. Building that
+  // would compile something that exists nowhere — neither what was written nor
+  // what the user meant to save. The buffer's own save fires the next event, so
+  // nothing is lost; it is said out loud because a silent skip is precisely the
+  // bug this watcher was built to end.
+  if (doc.isDirty) {
+    output.appendLine(
+      `• ${path.basename(doc.fileName)}: skipped — the open editor has unsaved changes`
+    );
+    return;
+  }
+
+  await handleChange(doc);
+}
+
+// Files Minify4U writes itself are announced here before the write, and the
+// watcher ignores them until the entry ages out. A path, not merely a time
+// window: one build writes several files, and an unrelated edit in the same
+// moment must still get through.
+function markSelfWritten(fsPath: string): void {
+  selfWritten.set(key(fsPath), Date.now());
+}
+
+function isSelfWritten(fsPath: string): boolean {
+  const now = Date.now();
+  for (const [k, at] of selfWritten) {
+    if (now - at > SELF_WRITE_TTL_MS) {
+      selfWritten.delete(k);
+    }
+  }
+  // Deliberately not removed on a hit: one write can raise both a create and a
+  // change event, and the second would otherwise be treated as a real edit.
+  return selfWritten.has(key(fsPath));
 }
 
 // Saving stays quiet unless there is something to say — otherwise the channel
@@ -310,7 +497,9 @@ export function deactivate(): void {
   // nichts aufzuräumen – Subscriptions werden vom Context entsorgt.
 }
 
-async function handleSave(doc: vscode.TextDocument): Promise<void> {
+// The one pipeline both triggers lead into — an editor save under
+// minify4u.trigger "save", a change on disk under "watch".
+async function handleChange(doc: vscode.TextDocument): Promise<void> {
   if (doc.uri.scheme !== "file") {
     return;
   }
@@ -456,14 +645,20 @@ async function buildDocument(
       if (result.map) {
         // Map first: by the time the CSS (and its sourceMappingURL) goes out —
         // possibly straight to a server via upload-on-save — the map it points
-        // to already exists. Written via the fs API, so no onDidSave fires.
+        // to already exists.
         const mapName = path.basename(target.fsPath) + ".map";
+        const mapPath = target.fsPath + ".map";
+        // Announced before the write, not after: under minify4u.trigger "watch"
+        // the file event can arrive while writeFile is still being awaited, and
+        // an unannounced write is one the watcher would hand straight back.
+        markSelfWritten(mapPath);
         await vscode.workspace.fs.writeFile(
-          vscode.Uri.file(target.fsPath + ".map"),
+          vscode.Uri.file(mapPath),
           Buffer.from(serializeMap(result.map, target.fsPath), "utf8")
         );
         code = `${code}${code.endsWith("\n") ? "" : "\n"}/*# sourceMappingURL=${mapName} */\n`;
       }
+      markSelfWritten(target.fsPath);
       await vscode.workspace.fs.writeFile(target, Buffer.from(code, "utf8"));
       const rel = path.relative(folder.uri.fsPath, target.fsPath);
       const prefixed = opts.autoprefixer && producesCss(a.rule.minifier);
