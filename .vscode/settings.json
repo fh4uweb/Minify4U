@@ -1,0 +1,12 @@
+{
+  // Minify4U baut sich selbst mit esbuild (npm run compile / package) — die
+  // Extension hat in ihrem eigenen Quellbaum nichts zu tun. Ohne diese Zeile
+  // greift ein geerbtes "minify4u.output.javascript": "*" aus den
+  // Benutzer-Einstellungen und legt neben jede gebaute oder geschriebene .js
+  // eine .min.js: dist/extension.min.js, tools/check-l10n.min.js — Dateien, die
+  // niemand geladen hat und die vsce mit ins Paket nimmt.
+  //
+  // Zum Ausprobieren der Extension selbst ist test-workspace/ da, das eigene
+  // Einstellungen mitbringt.
+  "minify4u.enable": false
+}

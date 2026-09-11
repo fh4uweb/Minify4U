@@ -2,7 +2,7 @@
   "name": "minify4u",
   "displayName": "Minify4U",
   "description": "%extension.description%",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "publisher": "4uweb",
   "license": "MIT",
   "author": {
@@ -263,6 +263,7 @@
     "compile": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "typecheck": "tsc --noEmit",
+    "check-l10n": "node tools/check-l10n.js",
     "package": "vsce package"
   },
   "dependencies": {

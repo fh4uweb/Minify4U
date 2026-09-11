@@ -6,6 +6,20 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.1] – 2026-09-11
+
+### Changed
+- **German settings texts now speak German, not transliterated English.** The first pass kept the
+  jargon of the original: "Glob", "Vendor-Prefixe" and — fourteen times — "Ordner-Root". None of
+  those mean anything to someone who writes code occasionally rather than daily.
+  "Ordner-Root" is now "Projektordner", "Glob" is "Dateimuster mit Wildcards", and vendor prefixes
+  link to the German Wikipedia article on [Herstellerpräfixe](https://de.wikipedia.org/wiki/Herstellerpr%C3%A4fix).
+  Terms that are genuinely common in the field — Source Map, Trigger, Minifier, Partial — are kept.
+- Added `npm run check-l10n`: verifies that both `package.nls*.json` carry the same keys, that every
+  `vscode.l10n.t()` call has a bundle entry (and no entry is unused), and that no markdown link
+  contains an unencoded `(` — a parenthesis in a URL silently truncates the link, which is exactly
+  what happened to the Wikipedia link while writing this release.
+
 ## [0.8.0] – 2026-09-11
 
 ### Added

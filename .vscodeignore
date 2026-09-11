@@ -8,6 +8,7 @@ test-workspace*/**
 .git/**
 esbuild.js
 tsconfig.json
+tools/**
 **/*.map
 **/*.ts
 
