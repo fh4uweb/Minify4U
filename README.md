@@ -7,6 +7,9 @@
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/4uweb.minify4u)](https://marketplace.visualstudio.com/items?itemName=4uweb.minify4u&ssr=false#review-details)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+> 🇩🇪 **New in 0.8.0: German UI included.** Settings, notifications and the output channel follow
+> VS Code's display language — nothing to configure. *Jetzt auch mit deutscher Oberfläche.*
+
 A VS Code extension that **minifies source files whenever they change** and writes the output
 to a **path that is freely configurable per file type**.
 

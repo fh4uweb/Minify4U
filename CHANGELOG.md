@@ -6,6 +6,21 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] – 2026-09-11
+
+### Added
+- **German user interface.** Settings descriptions, notifications and the output channel now follow
+  VS Code's display language: with a German VS Code everything appears in German, everywhere else
+  in English. Nothing to configure.
+  Settings are localized through `package.nls.json` / `package.nls.de.json`, runtime messages
+  through `vscode.l10n` with a bundle per language — 45 strings, checked to be complete rather than
+  assumed.
+
+### Note for contributors
+Adding a setting now means adding its text to **both** `package.nls*.json` files, and any new
+message must go through `vscode.l10n.t()`. A string that misses the bundle silently falls back to
+English.
+
 ## [0.7.0] – 2026-09-10
 
 Asks about the inherited setting instead of about one folder.

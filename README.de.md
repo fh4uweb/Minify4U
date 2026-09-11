@@ -7,6 +7,9 @@
 [![Bewertung](https://img.shields.io/visual-studio-marketplace/r/4uweb.minify4u?label=Bewertung)](https://marketplace.visualstudio.com/items?itemName=4uweb.minify4u&ssr=false#review-details)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-green.svg)](LICENSE)
 
+> 🇩🇪 **Neu in 0.8.0: deutsche Oberfläche.** Einstellungen, Meldungen und der Output-Channel
+> richten sich nach der Anzeigesprache von VS Code – einzustellen ist nichts.
+
 VS-Code-Extension, die Quelldateien **bei jeder Änderung** minifiziert und den Output an einen
 **je Dateityp/Glob frei konfigurierbaren Pfad** schreibt.
 

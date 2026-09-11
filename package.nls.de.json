@@ -1,0 +1,45 @@
+{
+  "extension.description": "Minifiziert Quelldateien (JS/CSS/SCSS/SASS/LESS/HTML/JSON) bei jeder Änderung und schreibt den Output an einen je Dateityp frei konfigurierbaren Pfad.",
+
+  "command.minifyCurrentFile.title": "Minify4U: Aktuelle Datei minifizieren",
+
+  "config.enable.description": "Minify4U aktivieren.",
+
+  "config.trigger.description": "Was einen Build auslöst.\n\n`watch` (Vorgabe) nutzt einen Datei-Watcher – auch Dateien, die **außerhalb des Editors** geschrieben werden, lösen einen Build aus. `save` hört nur auf Speichern im Editor – das Verhalten bis v0.4.1.\n\nDie beiden schließen sich gegenseitig aus: es ist immer nur eines aktiv.",
+  "config.trigger.watch": "Bauen, sobald sich die Datei auf der Platte ändert – beim Speichern im Editor, aber auch wenn ein anderes Werkzeug, ein Skript oder ein KI-Assistent schreibt.",
+  "config.trigger.save": "Nur beim Speichern im Editor bauen. Dafür gedacht, wo Datei-Watcher unzuverlässig sind, etwa in manchen Remote-SSH-, WSL- oder Netzlaufwerk-Umgebungen.",
+
+  "config.output.javascript": "Ausgabe-Ordner für **JavaScript** (terser), relativ zum Ordner-Root.\n\nBeispiel: `assets/js` – aus `src/app.js` entsteht `assets/js/app.min.js`.\n\n`*` = neben die Quelldatei schreiben · leer = deaktiviert",
+  "config.output.css": "Ausgabe-Ordner für **CSS** (clean-css), relativ zum Ordner-Root.\n\nBeispiel: `assets/css` – aus `src/style.css` entsteht `assets/css/style.min.css`.\n\n`*` = neben die Quelldatei schreiben · leer = deaktiviert",
+  "config.output.scss": "Ausgabe-Ordner für **SCSS** – kompiliert *und* minifiziert (Dart Sass), relativ zum Ordner-Root.\n\nBeispiel: `assets/css` – aus `src/style.scss` entsteht `assets/css/style.min.css`.\n\n`*` = neben die Quelldatei schreiben · leer = deaktiviert (leer lassen, wenn ein eigener Sass-Compiler das SCSS schon übernimmt)",
+  "config.output.sass": "Ausgabe-Ordner für **eingerücktes Sass** (`.sass`) – kompiliert *und* minifiziert (Dart Sass), relativ zum Ordner-Root.\n\nBeispiel: `assets/css` – aus `src/style.sass` entsteht `assets/css/style.min.css`.\n\n`*` = neben die Quelldatei schreiben · leer = deaktiviert",
+  "config.output.less": "Ausgabe-Ordner für **LESS** – kompiliert *und* minifiziert, relativ zum Ordner-Root.\n\nBeispiel: `assets/css` – aus `src/theme.less` entsteht `assets/css/theme.min.css`.\n\n`*` = neben die Quelldatei schreiben · leer = deaktiviert",
+  "config.output.html": "Ausgabe-Ordner für **HTML** (html-minifier-terser), relativ zum Ordner-Root.\n\nBeispiel: `assets/html` – aus `src/page.html` entsteht `assets/html/page.min.html`.\n\n`*` = neben die Quelldatei schreiben · leer = deaktiviert",
+  "config.output.json": "Ausgabe-Ordner für **JSON** (kompakt), relativ zum Ordner-Root.\n\nBeispiel: `assets/json` – aus `src/data.json` entsteht `assets/json/data.min.json`.\n\n`*` = neben die Quelldatei schreiben · leer = deaktiviert",
+  "config.output.jsonc": "Ausgabe-Ordner für **JSONC** (JSON mit Kommentaren; die Kommentare werden entfernt), relativ zum Ordner-Root.\n\nBeispiel: `assets/json` – aus `src/config.jsonc` entsteht `assets/json/config.min.json`.\n\n`*` = neben die Quelldatei schreiben · leer = deaktiviert",
+
+  "config.expanded.scss": "Ausgabe-Ordner für **lesbares, nicht minifiziertes CSS** aus SCSS, relativ zum Ordner-Root.\n\nUnabhängig von `minify4u.output.scss`: Beide setzen ergibt `style.css` **und** `style.min.css` aus einem Durchlauf; nur diese Einstellung ersetzt einen eigenen Sass-Compiler, dessen Aufgabe das Schreiben einer schlichten CSS war.\n\nBeispiel: `assets/css` – aus `src/style.scss` entsteht `assets/css/style.css`.\n\n`*` = neben die Quelldatei schreiben · leer = keine lesbare Ausgabe",
+  "config.expanded.sass": "Ausgabe-Ordner für **lesbares, nicht minifiziertes CSS** aus eingerücktem Sass (`.sass`), relativ zum Ordner-Root.\n\nUnabhängig von `minify4u.output.sass` – siehe `minify4u.expanded.scss`.\n\nBeispiel: `assets/css` – aus `src/style.sass` entsteht `assets/css/style.css`.\n\n`*` = neben die Quelldatei schreiben · leer = keine lesbare Ausgabe",
+  "config.expanded.less": "Ausgabe-Ordner für **lesbares, nicht minifiziertes CSS** aus LESS, relativ zum Ordner-Root.\n\nUnabhängig von `minify4u.output.less` – siehe `minify4u.expanded.scss`.\n\nBeispiel: `assets/css` – aus `src/theme.less` entsteht `assets/css/theme.css`.\n\n`*` = neben die Quelldatei schreiben · leer = keine lesbare Ausgabe",
+
+  "config.sourceMaps": "Schreibt eine Source Map (`<ausgabe>.css.map`) neben jede CSS-Datei, die aus **SCSS, Sass oder LESS** kompiliert wurde – minifiziert wie lesbar, auch bei `minify4u.rules`-Einträgen mit diesen Compilern. Die DevTools zeigen dann die Zeile in der Quelle statt im kompilierten CSS.\n\nDie Quellen sind relativ zur Map referenziert **und** zusätzlich in sie eingebettet – die Zuordnung funktioniert also selbst dort, wo der Quellbaum nicht deployt ist.\n\nStandardmäßig aus: Die Maps landen neben den Ausgabe-Dateien, und ein Upload-beim-Speichern-Watcher würde sie mit deployen.",
+  "config.autoprefixer": "Ergänzt Vendor-Prefixe (`-webkit-`, `-moz-`, …) in jeder CSS-Datei, die Minify4U erzeugt – aus **SCSS, Sass, LESS und reinem CSS**, minifiziert wie lesbar. Die Prefixe kommen **vor** dem Minifizieren hinein, und die Source Maps zeigen weiterhin auf die Originalquelle.\n\nWelche Browser gemeint sind, kommt aus der **browserslist**-Konfiguration des Projekts (`package.json`, `.browserslistrc`), gesucht vom Quelldatei-Pfad aufwärts. Ohne eine solche greifen die Vorgaben von browserslist – übersteuern lässt sich das mit `minify4u.browserslist`. Der Output-Channel nennt bei jedem Schreibvorgang die Anzahl der Browser.\n\nStandardmäßig aus: Prefixe verändern die ausgelieferten Dateien, und das darf nie die Nebenwirkung eines Updates sein.",
+  "config.browserslist": "Ziel-Browser für `minify4u.autoprefixer`, als [browserslist-Abfragen](https://browsersl.ist).\n\nLeer (die Vorgabe) = die browserslist-Konfiguration des Projekts nutzen, oder die Vorgaben von browserslist, wenn es keine hat. Nur für Projekte setzen, die keine eigene browserslist-Konfiguration mitbringen – eine Konfiguration im Projekt ist der bessere Ort, weil andere Werkzeuge sie ebenfalls lesen.\n\nBeispiel: `[\"> 1%\", \"last 2 versions\", \"not dead\"]`",
+  "config.exclude": "Globs (relativ zum Ordner-Root), die Minify4U vollständig ignoriert – für eine passende Datei entsteht keine Ausgabe.\n\nGilt für alle Sprachen und hält diese Dateien zusätzlich aus der Suche nach Sass-Hauptdateien heraus.\n\nDie Vorgabe hält Abhängigkeiten und die Konfiguration von VS Code heraus: Ohne `**/.vscode/**` würde jede Änderung an der `settings.json` (die VS Code als JSONC behandelt) eine minifizierte Kopie der Projektkonfiguration in den JSONC-Ausgabe-Ordner schreiben.\n\nBeispiel: `**/vendor/**`",
+
+  "config.rules": "Regeln je Dateityp/Glob. Es greift die **erste** passende Regel; passt keine, wird die Einstellung `minify4u.output.*` der jeweiligen Sprache herangezogen.",
+  "config.rules.glob": "Glob relativ zum Ordner-Root, z. B. `src/js/**/*.js`. Alternative zu `type`.",
+  "config.rules.type": "VS-Code-Sprach-ID, z. B. `javascript`, `css`. Alternative zu `glob`.",
+  "config.rules.savePath": "Ziel-Ordner relativ zum Ordner-Root, z. B. `assets/js`. Mit `*` wird neben die Quelldatei geschrieben.",
+  "config.rules.suffix": "Endung der Ausgabe-Datei, z. B. `.min.js`. Ersetzt die Original-Endung.",
+  "config.rules.minifier": "Minifier: `terser` (JS), `clean-css` (CSS), `sass` (SCSS/SASS→CSS), `sass-expanded` (lesbares CSS), `less` (LESS→CSS), `less-expanded` (lesbares CSS), `html`, `json` (kompakt), `json-pretty` (lesbare JSON, nicht minifiziert).",
+  "config.rules.minifier.terser": "JavaScript minifizieren (Terser).",
+  "config.rules.minifier.cleanCss": "CSS minifizieren (clean-css).",
+  "config.rules.minifier.sass": "SCSS/SASS kompilieren + minifizieren → CSS (Dart Sass, compressed).",
+  "config.rules.minifier.sassExpanded": "SCSS/SASS kompilieren → lesbares CSS (Dart Sass, expanded) – nicht minifiziert.",
+  "config.rules.minifier.less": "LESS kompilieren + minifizieren → CSS (less + clean-css).",
+  "config.rules.minifier.lessExpanded": "LESS kompilieren → lesbares CSS – nicht minifiziert.",
+  "config.rules.minifier.html": "HTML minifizieren (html-minifier-terser).",
+  "config.rules.minifier.json": "JSON/JSONC minifizieren (Kommentare/Leerraum entfernt, kompakt).",
+  "config.rules.minifier.jsonPretty": "JSON/JSONC in lesbare JSON umwandeln (Kommentare/Trailing-Commas entfernt, eingerückt) – nicht minifiziert."
+}

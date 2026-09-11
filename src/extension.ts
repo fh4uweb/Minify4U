@@ -244,7 +244,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push({ dispose: disposeWatchers });
 
   setUpWatchers();
-  output.appendLine("Minify4U activated.");
+  output.appendLine(vscode.l10n.t("Minify4U activated."));
 }
 
 function triggerMode(): string {
@@ -271,7 +271,7 @@ function setUpWatchers(): void {
   disposeWatchers();
 
   if (triggerMode() !== "watch") {
-    output.appendLine("Trigger: editor save (minify4u.trigger = save).");
+    output.appendLine(vscode.l10n.t("Trigger: editor save (minify4u.trigger = save)."));
     return;
   }
 
@@ -299,7 +299,9 @@ function setUpWatchers(): void {
   }
 
   output.appendLine(
-    `Trigger: file watcher, ${globs.size} pattern${globs.size === 1 ? "" : "s"}.`
+    globs.size === 1
+      ? vscode.l10n.t("Trigger: file watcher, 1 pattern.")
+      : vscode.l10n.t("Trigger: file watcher, {0} patterns.", globs.size)
   );
 }
 
@@ -351,7 +353,7 @@ async function buildFromDisk(uri: vscode.Uri): Promise<void> {
   // bug this watcher was built to end.
   if (doc.isDirty) {
     output.appendLine(
-      `• ${path.basename(doc.fileName)}: skipped — the open editor has unsaved changes`
+      vscode.l10n.t("• {0}: skipped — the open editor has unsaved changes", path.basename(doc.fileName))
     );
     return;
   }
@@ -389,33 +391,42 @@ function isSelfWritten(fsPath: string): boolean {
 async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
   const doc = await resolveDocument(target);
   if (!doc) {
-    void tell("warn", "No file is open.");
+    void tell("warn", vscode.l10n.t("No file is open."));
     return;
   }
 
   const name = path.basename(doc.fileName);
 
   if (doc.uri.scheme !== "file") {
-    void tell("warn", `${name} is not a file on disk.`);
+    void tell("warn", vscode.l10n.t("{0} is not a file on disk.", name));
     return;
   }
   if (doc.isDirty) {
     // Sass compiles from disk, so an unsaved buffer would report the previous
     // content — and saving runs the whole pipeline anyway.
-    void tell("warn", `${name} has unsaved changes — save it first.`);
+    void tell(
+      "warn",
+      vscode.l10n.t("{0} has unsaved changes — save it first.", name)
+    );
     return;
   }
 
   const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
   if (!folder) {
-    void tell("warn", `${name} is outside every workspace folder.`);
+    void tell(
+      "warn",
+      vscode.l10n.t("{0} is outside every workspace folder.", name)
+    );
     return;
   }
 
   const config = vscode.workspace.getConfiguration("minify4u", doc.uri);
 
   if (isExcluded(config, doc, folder)) {
-    void tell("info", `${name} is ignored — it matches minify4u.exclude.`);
+    void tell(
+      "info",
+      vscode.l10n.t("{0} is ignored — it matches minify4u.exclude.", name)
+    );
     return;
   }
 
@@ -424,8 +435,12 @@ async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
     void tell(
       "info",
       built.length > 0
-        ? `${name} is a partial — rebuilt ${built.join(", ")}.`
-        : `${name} is a partial, but no main file imports it.`
+        ? vscode.l10n.t(
+            "{0} is a partial — rebuilt {1}.",
+            name,
+            built.join(", ")
+          )
+        : vscode.l10n.t("{0} is a partial, but no main file imports it.", name)
     );
     return;
   }
@@ -438,7 +453,7 @@ async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
         `${name} → ${outcome.wrote
           .map(
             (w) =>
-              `${w.rel}${w.map ? " +map" : ""}${w.prefixed ? " +prefixes" : ""} (minify4u.${w.setting}, from ${originOf(config, w.setting)})`
+              `${w.rel}${w.map ? " +map" : ""}${w.prefixed ? " +prefixes" : ""} (minify4u.${w.setting}, ${vscode.l10n.t("from {0}", originOf(config, w.setting))})`
           )
           .join(" · ")}`
       );
@@ -446,17 +461,27 @@ async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
     case "noRule":
       void tell(
         "warn",
-        `Nothing to do for "${doc.languageId}" — ${noRuleReason(config, outcome.setting)}.`
+        vscode.l10n.t(
+          'Nothing to do for "{0}" — {1}.',
+          doc.languageId,
+          noRuleReason(config, outcome.setting)
+        )
       );
       break;
     case "disabled":
       void tell(
         "warn",
-        `Minify4U is switched off here — minify4u.enable = false, set by ${originOf(config, "enable")}.`
+        vscode.l10n.t(
+          "Minify4U is switched off here — minify4u.enable = false, set by {0}.",
+          originOf(config, "enable")
+        )
       );
       break;
     case "alreadyMinified":
-      void tell("info", `${name} is already minified — skipped.`);
+      void tell(
+        "info",
+        vscode.l10n.t("{0} is already minified — skipped.", name)
+      );
       break;
     case "error":
       // buildDocument already raised the error notification.
@@ -486,8 +511,11 @@ async function tell(level: "info" | "warn", message: string): Promise<void> {
   // strip its receiver.
   const pick =
     level === "warn"
-      ? await vscode.window.showWarningMessage(text, "Show output")
-      : await vscode.window.showInformationMessage(text, "Show output");
+      ? await vscode.window.showWarningMessage(text, vscode.l10n.t("Show output"))
+      : await vscode.window.showInformationMessage(
+          text,
+          vscode.l10n.t("Show output")
+        );
   if (pick) {
     output.show(true);
   }
@@ -518,7 +546,7 @@ async function handleChange(doc: vscode.TextDocument): Promise<void> {
     // extension: someone hunting for why nothing is built needs to learn that
     // the file was deliberately skipped, not overlooked.
     output.appendLine(
-      `• ${path.basename(doc.fileName)}: ignored — it matches minify4u.exclude`
+      vscode.l10n.t("• {0}: ignored — it matches minify4u.exclude", path.basename(doc.fileName))
     );
     return;
   }
@@ -530,7 +558,10 @@ async function handleChange(doc: vscode.TextDocument): Promise<void> {
     if (!config.get<boolean>("enable", true)) {
       if (languageOutput(config, doc)) {
         output.appendLine(
-          `✗ ${path.basename(doc.fileName)}: skipped — Minify4U is disabled (minify4u.enable = false)`
+          vscode.l10n.t(
+        "✗ {0}: skipped — Minify4U is disabled (minify4u.enable = false)",
+        path.basename(doc.fileName)
+      )
         );
         warnDisabledOnce(config, folder);
       }
@@ -553,7 +584,7 @@ async function handleChange(doc: vscode.TextDocument): Promise<void> {
   // that says nothing but "this file was never meant for me".
   if (outcome.kind === "noRule" && LANG_DEFAULTS[doc.languageId]) {
     output.appendLine(
-      `• ${path.basename(doc.fileName)}: nothing to do — ${noRuleReason(config, outcome.setting)}`
+      vscode.l10n.t("• {0}: nothing to do — {1}", path.basename(doc.fileName), noRuleReason(config, outcome.setting))
     );
   }
 }
@@ -577,7 +608,11 @@ function warnDisabledOnce(
   disabledWarned.add(key(folder.uri.fsPath));
   void tell(
     "warn",
-    `Nothing was written in "${folder.name}" — minify4u.enable = false, set by ${originOf(config, "enable")}.`
+    vscode.l10n.t(
+      'Nothing was written in "{0}" — minify4u.enable = false, set by {1}.',
+      folder.name,
+      originOf(config, "enable")
+    )
   );
 }
 
@@ -648,15 +683,23 @@ async function offerExplicitOutput(
 ): Promise<void> {
   const dir = path.basename(path.dirname(doc.fileName));
   const looksGenerated = BUILD_FOLDERS.includes(dir.toLowerCase());
-  const keep = "Keep it here";
-  const choose = "Choose folder…";
-  const off = "Don't minify here";
+  const keep = vscode.l10n.t("Keep it here");
+  const choose = vscode.l10n.t("Choose folder…");
+  const off = vscode.l10n.t("Don't minify here");
 
   const pick = await vscode.window.showInformationMessage(
-    `Minify4U put ${written.rel.split(/[\\/]/).pop()} next to its source, in "${dir}" — ` +
-      `minify4u.${written.setting} is "*", inherited from ${originOf(config, written.setting)}.` +
-      (looksGenerated ? ` "${dir}" looks like a build folder.` : "") +
-      ` What should apply in "${folder.name}"?`,
+    vscode.l10n.t(
+      'Minify4U put {0} next to its source, in "{1}" — minify4u.{2} is "*", inherited from {3}.',
+      written.rel.split(/[\\/]/).pop() ?? "",
+      dir,
+      written.setting,
+      originOf(config, written.setting)
+    ) +
+      (looksGenerated
+        ? " " + vscode.l10n.t('"{0}" looks like a build folder.', dir)
+        : "") +
+      " " +
+      vscode.l10n.t('What should apply in "{0}"?', folder.name),
     keep,
     choose,
     off
@@ -676,7 +719,7 @@ async function offerExplicitOutput(
       canSelectFiles: false,
       canSelectMany: false,
       defaultUri: folder.uri,
-      openLabel: "Use as output folder"
+      openLabel: vscode.l10n.t("Use as output folder")
     });
     if (!picked?.[0]) {
       return;
@@ -687,7 +730,10 @@ async function offerExplicitOutput(
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
       void tell(
         "warn",
-        `That folder is outside "${folder.name}" — the output folder has to be inside the project. Nothing was changed.`
+        vscode.l10n.t(
+          'That folder is outside "{0}" — the output folder has to be inside the project. Nothing was changed.',
+          folder.name
+        )
       );
       return;
     }
@@ -705,19 +751,32 @@ async function offerExplicitOutput(
   } catch (err) {
     void tell(
       "warn",
-      `Could not write minify4u.${written.setting}: ${err instanceof Error ? err.message : String(err)}`
+      vscode.l10n.t(
+        "Could not write minify4u.{0}: {1}",
+        written.setting,
+        err instanceof Error ? err.message : String(err)
+      )
     );
     return;
   }
 
   output.appendLine(
-    `• minify4u.${written.setting} set to ${value === "" ? '"" (off)' : `"${value}"`} for "${folder.name}"`
+    vscode.l10n.t(
+      '• minify4u.{0} set to {1} for "{2}"',
+      written.setting,
+      value === "" ? vscode.l10n.t('"" (off)') : `"${value}"`,
+      folder.name
+    )
   );
   if (value !== "*") {
     // Never deleted on the extension's own initiative — but leaving it there
     // without a word is how stale build output survives unnoticed.
     output.appendLine(
-      `  ↳ ${written.rel.split(/[\\/]/).join("/")} from the previous build is still there — remove it by hand if you don't want it.`
+      "  ↳ " +
+        vscode.l10n.t(
+          "{0} from the previous build is still there — remove it by hand if you don't want it.",
+          written.rel.split(/[\\/]/).join("/")
+        )
     );
   }
 }
@@ -743,7 +802,10 @@ async function buildDocument(
   // produced output explains itself instead of failing silently.
   if (!config.get<boolean>("enable", true)) {
     output.appendLine(
-      `✗ ${path.basename(doc.fileName)}: skipped — Minify4U is disabled (minify4u.enable = false)`
+      vscode.l10n.t(
+        "✗ {0}: skipped — Minify4U is disabled (minify4u.enable = false)",
+        path.basename(doc.fileName)
+      )
     );
     return { kind: "disabled" };
   }
@@ -753,7 +815,7 @@ async function buildDocument(
   // were merely opened and saved. Any applying suffix is reason enough.
   if (applied.some((a) => isAlreadyMinified(doc.fileName, a.rule.suffix))) {
     output.appendLine(
-      `• ${path.basename(doc.fileName)}: skipped — already minified`
+      vscode.l10n.t("• {0}: skipped — already minified", path.basename(doc.fileName))
     );
     return { kind: "alreadyMinified" };
   }
@@ -815,7 +877,10 @@ async function buildDocument(
       const extras = [
         result.map ? "+ .map" : "",
         prefixed
-          ? `prefixed for ${browserTargets(opts, doc.fileName).count} browsers`
+          ? vscode.l10n.t(
+              "prefixed for {0} browsers",
+              browserTargets(opts, doc.fileName).count
+            )
           : ""
       ].filter(Boolean);
       output.appendLine(
@@ -833,7 +898,7 @@ async function buildDocument(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     output.appendLine(`✗ ${path.basename(doc.fileName)}: ${msg}`);
-    void vscode.window.showErrorMessage(`Minify4U: ${msg}`);
+    void vscode.window.showErrorMessage(vscode.l10n.t("Minify4U: {0}", msg));
     return { kind: "error", message: msg };
   }
 }
@@ -849,7 +914,7 @@ async function rebuildDependents(
   const candidates = await findCandidateMains(config, partial.fileName, folder);
 
   if (candidates.length === 0) {
-    output.appendLine(`• ${name}: partial saved — no main file found to rebuild`);
+    output.appendLine(vscode.l10n.t("• {0}: partial saved — no main file found to rebuild", name));
     return [];
   }
 
@@ -868,7 +933,7 @@ async function rebuildDependents(
   }
 
   if (built.length === 0) {
-    output.appendLine(`• ${name}: partial saved — no main file imports it`);
+    output.appendLine(vscode.l10n.t("• {0}: partial saved — no main file imports it", name));
   }
   return built;
 }
@@ -939,7 +1004,7 @@ function resolveRules(
     config.get<string>(setting)?.trim()
   ) {
     output.appendLine(
-      `✗ ${doc.languageId}: no default minifier mapping — please configure it via "minify4u.rules" with "minifier"/"suffix".`
+      vscode.l10n.t("✗ {0}: no default minifier mapping — please configure it via \"minify4u.rules\" with \"minifier\"/\"suffix\".", doc.languageId)
     );
   }
 
@@ -984,27 +1049,48 @@ function noRuleReason(
   config: vscode.WorkspaceConfiguration,
   setting: string
 ): string {
-  const from = originOf(config, setting);
-  return from === "the default"
-    ? `minify4u.${setting} is not set anywhere`
-    : `minify4u.${setting} is empty, set by ${from}`;
+  return originKind(config, setting) === "default"
+    ? vscode.l10n.t("minify4u.{0} is not set anywhere", setting)
+    : vscode.l10n.t(
+        "minify4u.{0} is empty, set by {1}",
+        setting,
+        originOf(config, setting)
+      );
+}
+
+// The level a value comes from, as a value rather than as a sentence — callers
+// that *decide* something must never compare translated text.
+function originKind(
+  config: vscode.WorkspaceConfiguration,
+  setting: string
+): "folder" | "workspace" | "user" | "default" {
+  const info = config.inspect(setting);
+  if (info?.workspaceFolderValue !== undefined) {
+    return "folder";
+  }
+  if (info?.workspaceValue !== undefined) {
+    return "workspace";
+  }
+  if (info?.globalValue !== undefined) {
+    return "user";
+  }
+  return "default";
 }
 
 function originOf(
   config: vscode.WorkspaceConfiguration,
   setting: string
 ): string {
-  const info = config.inspect(setting);
-  if (info?.workspaceFolderValue !== undefined) {
-    return "this project";
+  switch (originKind(config, setting)) {
+    case "folder":
+      return vscode.l10n.t("this project");
+    case "workspace":
+      return vscode.l10n.t("the workspace");
+    case "user":
+      return vscode.l10n.t("your user settings");
+    default:
+      return vscode.l10n.t("the default");
   }
-  if (info?.workspaceValue !== undefined) {
-    return "the workspace";
-  }
-  if (info?.globalValue !== undefined) {
-    return "your user settings";
-  }
-  return "the default";
 }
 
 // Windows paths differ in case and separators depending on who reports them

@@ -1,8 +1,8 @@
 {
   "name": "minify4u",
   "displayName": "Minify4U",
-  "description": "Minify source files (JS/CSS/SCSS/SASS/LESS/HTML/JSON) whenever they change and write the output to a path that is freely configurable per file type.",
-  "version": "0.7.0",
+  "description": "%extension.description%",
+  "version": "0.8.0",
   "publisher": "4uweb",
   "license": "MIT",
   "author": {
@@ -31,7 +31,9 @@
     "live sass",
     "output path",
     "autoprefixer",
-    "source map"
+    "source map",
+    "deutsch",
+    "german"
   ],
   "repository": {
     "type": "git",
@@ -45,11 +47,12 @@
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
+  "l10n": "./l10n",
   "contributes": {
     "commands": [
       {
         "command": "minify4u.minifyCurrentFile",
-        "title": "Minify4U: Minify Current File"
+        "title": "%command.minifyCurrentFile.title%"
       }
     ],
     "menus": {
@@ -74,7 +77,7 @@
         "minify4u.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Minify4U.",
+          "description": "%config.enable.description%",
           "scope": "resource"
         },
         "minify4u.trigger": {
@@ -84,89 +87,89 @@
             "save"
           ],
           "enumDescriptions": [
-            "Build whenever the file changes on disk — an editor save, but also a write by another tool, a script or a code assistant.",
-            "Build only on an editor save. Use this where file watchers are unreliable, e.g. some Remote-SSH, WSL or network-drive setups."
+            "%config.trigger.watch%",
+            "%config.trigger.save%"
           ],
           "default": "watch",
-          "markdownDescription": "What makes Minify4U build.\n\n`watch` (default) uses a file-system watcher, so files written **outside the editor** build too. `save` listens for editor saves only — the behaviour up to v0.4.1.\n\nThe two are mutually exclusive: only one is ever active.",
+          "markdownDescription": "%config.trigger.description%",
           "scope": "window"
         },
         "minify4u.output.javascript": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **JavaScript** (terser), relative to the folder root.\n\nExample: `assets/js` — saving `src/app.js` writes `assets/js/app.min.js`.\n\n`*` = write next to the source file · empty = disabled",
+          "markdownDescription": "%config.output.javascript%",
           "scope": "resource"
         },
         "minify4u.output.css": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **CSS** (clean-css), relative to the folder root.\n\nExample: `assets/css` — saving `src/style.css` writes `assets/css/style.min.css`.\n\n`*` = write next to the source file · empty = disabled",
+          "markdownDescription": "%config.output.css%",
           "scope": "resource"
         },
         "minify4u.output.scss": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **SCSS** — compiled *and* minified (Dart Sass), relative to the folder root.\n\nExample: `assets/css` — saving `src/style.scss` writes `assets/css/style.min.css`.\n\n`*` = write next to the source file · empty = disabled (leave empty if a dedicated Sass compiler already handles SCSS)",
+          "markdownDescription": "%config.output.scss%",
           "scope": "resource"
         },
         "minify4u.output.sass": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **indented Sass** (`.sass`) — compiled *and* minified (Dart Sass), relative to the folder root.\n\nExample: `assets/css` — saving `src/style.sass` writes `assets/css/style.min.css`.\n\n`*` = write next to the source file · empty = disabled",
+          "markdownDescription": "%config.output.sass%",
           "scope": "resource"
         },
         "minify4u.output.less": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **LESS** — compiled *and* minified, relative to the folder root.\n\nExample: `assets/css` — saving `src/theme.less` writes `assets/css/theme.min.css`.\n\n`*` = write next to the source file · empty = disabled",
+          "markdownDescription": "%config.output.less%",
           "scope": "resource"
         },
         "minify4u.output.html": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **HTML** (html-minifier-terser), relative to the folder root.\n\nExample: `assets/html` — saving `src/page.html` writes `assets/html/page.min.html`.\n\n`*` = write next to the source file · empty = disabled",
+          "markdownDescription": "%config.output.html%",
           "scope": "resource"
         },
         "minify4u.output.json": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **JSON** (compact), relative to the folder root.\n\nExample: `assets/json` — saving `src/data.json` writes `assets/json/data.min.json`.\n\n`*` = write next to the source file · empty = disabled",
+          "markdownDescription": "%config.output.json%",
           "scope": "resource"
         },
         "minify4u.output.jsonc": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **JSONC** (JSON with comments; comments are removed), relative to the folder root.\n\nExample: `assets/json` — saving `src/config.jsonc` writes `assets/json/config.min.json`.\n\n`*` = write next to the source file · empty = disabled",
+          "markdownDescription": "%config.output.jsonc%",
           "scope": "resource"
         },
         "minify4u.expanded.scss": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **readable, non-minified CSS** compiled from SCSS, relative to the folder root.\n\nIndependent of `minify4u.output.scss`: set both to get `style.css` *and* `style.min.css` from one save, or only this one to replace a dedicated Sass compiler that just writes plain CSS.\n\nExample: `assets/css` — saving `src/style.scss` writes `assets/css/style.css`.\n\n`*` = write next to the source file · empty = no expanded output",
+          "markdownDescription": "%config.expanded.scss%",
           "scope": "resource"
         },
         "minify4u.expanded.sass": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **readable, non-minified CSS** compiled from indented Sass (`.sass`), relative to the folder root.\n\nIndependent of `minify4u.output.sass` — see `minify4u.expanded.scss`.\n\nExample: `assets/css` — saving `src/style.sass` writes `assets/css/style.css`.\n\n`*` = write next to the source file · empty = no expanded output",
+          "markdownDescription": "%config.expanded.sass%",
           "scope": "resource"
         },
         "minify4u.expanded.less": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Output folder for **readable, non-minified CSS** compiled from LESS, relative to the folder root.\n\nIndependent of `minify4u.output.less` — see `minify4u.expanded.scss`.\n\nExample: `assets/css` — saving `src/theme.less` writes `assets/css/theme.css`.\n\n`*` = write next to the source file · empty = no expanded output",
+          "markdownDescription": "%config.expanded.less%",
           "scope": "resource"
         },
         "minify4u.sourceMaps": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Write a source map (`<output>.css.map`) next to every CSS file compiled from **SCSS, Sass or LESS** — minified and readable alike, including `minify4u.rules` entries that use those compilers. DevTools then point at the original source line instead of the compiled CSS.\n\nSources are referenced relative to the map *and* embedded into it, so the mapping works even where the source tree is not deployed.\n\nOff by default: the maps land next to your output files, and an upload-on-save watcher would deploy them.",
+          "markdownDescription": "%config.sourceMaps%",
           "scope": "resource"
         },
         "minify4u.autoprefixer": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Add vendor prefixes (`-webkit-`, `-moz-`, …) to every CSS file Minify4U produces — from **SCSS, Sass, LESS and plain CSS**, minified and readable alike. Prefixes are added *before* minifying, and source maps keep pointing at the original source.\n\nWhich browsers are targeted comes from your project's own **browserslist** config (`package.json`, `.browserslistrc`), searched upwards from the source file. Without one, browserslist's defaults apply — override with `minify4u.browserslist`. The output channel names the number of browsers on every write.\n\nOff by default: prefixes change the files you ship, which should never be a side effect of an update.",
+          "markdownDescription": "%config.autoprefixer%",
           "scope": "resource"
         },
         "minify4u.browserslist": {
@@ -175,7 +178,7 @@
           "items": {
             "type": "string"
           },
-          "markdownDescription": "Browser targets for `minify4u.autoprefixer`, as [browserslist queries](https://browsersl.ist).\n\nEmpty (the default) = use the project's own browserslist config, or browserslist's defaults if it has none. Set this only for projects that carry no browserslist config of their own — a config in the project is the better place, since other tools read it too.\n\nExample: `[\"> 1%\", \"last 2 versions\", \"not dead\"]`",
+          "markdownDescription": "%config.browserslist%",
           "scope": "resource"
         },
         "minify4u.exclude": {
@@ -187,33 +190,33 @@
           "items": {
             "type": "string"
           },
-          "markdownDescription": "Globs (relative to the folder root) that Minify4U ignores completely — saving a file that matches produces no output.\n\nApplies to every language and also keeps these files out of the search for Sass main files.\n\nThe default keeps dependencies and VS Code's own config out: without `**/.vscode/**`, editing `settings.json` (which VS Code treats as JSONC) would write a minified copy of your project config into the JSONC output folder.\n\nExample: `**/vendor/**`",
+          "markdownDescription": "%config.exclude%",
           "scope": "resource"
         },
         "minify4u.rules": {
           "type": "array",
           "default": [],
-          "markdownDescription": "Rules per file type/glob. On save the **first** matching rule applies; if none matches, the `minify4u.output.*` setting for that language is used.",
+          "markdownDescription": "%config.rules%",
           "items": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
               "glob": {
                 "type": "string",
-                "markdownDescription": "Glob relative to the folder root, e.g. `src/js/**/*.js`. Alternative to `type`."
+                "markdownDescription": "%config.rules.glob%"
               },
               "type": {
                 "type": "string",
-                "markdownDescription": "VS Code language ID, e.g. `javascript`, `css`. Alternative to `glob`."
+                "markdownDescription": "%config.rules.type%"
               },
               "savePath": {
                 "type": "string",
                 "minLength": 1,
-                "markdownDescription": "Target folder relative to the folder root, e.g. `assets/js`. Use `*` to write next to the source file."
+                "markdownDescription": "%config.rules.savePath%"
               },
               "suffix": {
                 "type": "string",
-                "markdownDescription": "Output file extension, e.g. `.min.js`. Replaces the original extension.",
+                "markdownDescription": "%config.rules.suffix%",
                 "default": ".min.js"
               },
               "minifier": {
@@ -230,17 +233,17 @@
                   "json-pretty"
                 ],
                 "enumDescriptions": [
-                  "Minify JavaScript (Terser).",
-                  "Minify CSS (clean-css).",
-                  "Compile + minify SCSS/SASS → CSS (Dart Sass, compressed).",
-                  "Compile SCSS/SASS → readable CSS (Dart Sass, expanded) — not minified.",
-                  "Compile + minify LESS → CSS (less + clean-css).",
-                  "Compile LESS → readable CSS — not minified.",
-                  "Minify HTML (html-minifier-terser).",
-                  "Minify JSON/JSONC (comments/whitespace removed, compact).",
-                  "Convert JSON/JSONC to readable JSON (comments/trailing commas removed, indented) — not minified."
+                  "%config.rules.minifier.terser%",
+                  "%config.rules.minifier.cleanCss%",
+                  "%config.rules.minifier.sass%",
+                  "%config.rules.minifier.sassExpanded%",
+                  "%config.rules.minifier.less%",
+                  "%config.rules.minifier.lessExpanded%",
+                  "%config.rules.minifier.html%",
+                  "%config.rules.minifier.json%",
+                  "%config.rules.minifier.jsonPretty%"
                 ],
-                "markdownDescription": "Minifier: `terser` (JS), `clean-css` (CSS), `sass` (SCSS/SASS→CSS), `sass-expanded` (readable CSS), `less` (LESS→CSS), `less-expanded` (readable CSS), `html`, `json` (compact), `json-pretty` (readable JSON, not minified)."
+                "markdownDescription": "%config.rules.minifier%"
               }
             },
             "required": [
