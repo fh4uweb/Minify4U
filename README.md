@@ -201,6 +201,36 @@ actually loaded, and Minify4U reverses that. Two details worth knowing:
 
 ## Configuration
 
+### Where to change the settings
+
+Two ways, same result:
+
+**In the settings editor** — `Ctrl+,` (macOS `Cmd+,`), then type `@ext:4uweb.minify4u` at the top.
+That gathers every Minify4U setting in one place, each with its explanation. For the common case
+this is the easier route; the examples below show JSON simply because it is shorter to write down.
+
+**In `settings.json`** — via the Command Palette (`Ctrl+Shift+P`) → "Preferences: Open User
+Settings (JSON)", or through the "Edit in settings.json" link in the settings editor.
+
+> ⚠ **`minify4u.rules` is JSON-only.** The settings editor cannot render an array of objects as a
+> form, so it offers nothing but a link to the JSON — where you do get autocompletion for
+> `minifier`.
+
+#### User vs. Workspace — and what "inherited" means
+
+The settings editor has tabs: **User** applies to every project, **Workspace** only to the one
+that is open (with several project folders a **Folder** tab appears too). The more specific level
+wins.
+
+**The trap:** an **empty field** on the Workspace tab does **not** mean "off here", it means
+"nothing set here" — the value from the User level still applies. VS Code writes *"(Also modified
+in: User)"* next to the setting name in that case, and that note is how you spot an inherited
+value.
+
+This is the single most common source of surprise: set `minify4u.output.javascript` to `*` once and
+it applies in **every** project, including ones you never had in mind. That is why Minify4U asks
+the first time — see [When `*` is inherited](#when--is-inherited).
+
 ### Simple: output folder per language
 
 For the common case, one setting per language is enough. The minifier and extension are

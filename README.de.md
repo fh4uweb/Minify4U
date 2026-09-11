@@ -208,6 +208,38 @@ sollte:
 
 ## Konfiguration
 
+### Wo man die Einstellungen ändert
+
+Zwei Wege, dasselbe Ergebnis:
+
+**Im Einstellungs-Fenster** – `Strg+,` (macOS `Cmd+,`), dann oben `@ext:4uweb.minify4u`
+eintippen. Damit sind alle Minify4U-Einstellungen beisammen, jede mit ihrer Erklärung. Für den
+Normalfall ist das der bequemere Weg; die Beispiele in dieser Datei zeigen JSON, weil es sich
+kürzer schreibt.
+
+**In der `settings.json`** – über die Befehlspalette (`Strg+Umschalt+P`) → „Benutzereinstellungen
+öffnen (JSON)", oder im Einstellungs-Fenster über das Symbol „In settings.json bearbeiten".
+
+> ⚠ **`minify4u.rules` geht nur in der JSON-Datei.** Ein Array aus Objekten kann das
+> Einstellungs-Fenster nicht als Formular darstellen – dort steht nur ein Knopf, der die JSON
+> öffnet. Dafür gibt es in der JSON Autovervollständigung für `minifier`.
+
+#### Benutzer oder Arbeitsbereich – und was „geerbt" bedeutet
+
+Das Einstellungs-Fenster hat oben Reiter: **Benutzer** gilt für alle Projekte, **Arbeitsbereich**
+nur für das gerade geöffnete (bei mehreren Projektordnern kommt **Ordner** dazu). Das Speziellere
+gewinnt.
+
+**Die Stolperfalle:** Ein **leeres Feld** im Reiter „Arbeitsbereich" heißt **nicht** „hier aus",
+sondern „hier nichts gesetzt" – es gilt dann weiter der Wert von der Benutzer-Ebene. VS Code
+schreibt in so einem Fall *„(Geändert in Benutzer)"* hinter den Namen der Einstellung; genau daran
+erkennt man einen geerbten Wert.
+
+Das ist kein Schönheitsfehler, sondern der häufigste Grund für Überraschungen: Wer
+`minify4u.output.javascript` einmal auf `*` stellt, hat das in **jedem** Projekt stehen – auch in
+solchen, an die er dabei nicht gedacht hat. Deshalb fragt Minify4U beim ersten Mal nach, siehe
+[Wenn `*` geerbt ist](#wenn--geerbt-ist).
+
 ### Einfach: Ausgabe-Ordner je Sprache
 
 Für den Normalfall reicht **eine Einstellung je Sprache**. Minifier und Endung werden

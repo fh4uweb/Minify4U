@@ -6,6 +6,20 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.2] – 2026-09-11
+
+### Documentation
+- **The README showed nothing but JSON**, as though the settings editor did not exist — while it is
+  the way most people actually change a setting. Both READMEs now open the configuration chapter
+  with where to change things: `Ctrl+,` and `@ext:4uweb.minify4u`, or `settings.json`, with the
+  note that `minify4u.rules` is JSON-only because an array of objects has no form representation.
+- **Explained what "inherited" means**, which was missing entirely although it causes the most
+  surprise: an empty field on the Workspace tab does not mean "off here", it means "nothing set
+  here" — the User value still applies, and VS Code marks it with "(Also modified in: User)".
+  Set `output.javascript` to `*` once and it applies in every project, including the ones you never
+  had in mind. That is exactly what the inherited-`*` question from 0.7.0 exists for, and the two
+  now reference each other.
+
 ## [0.8.1] – 2026-09-11
 
 ### Changed
