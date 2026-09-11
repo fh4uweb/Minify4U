@@ -6,6 +6,24 @@ versioning follows [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.3] – 2026-09-11
+
+All three found by actually running 0.8.2 rather than by reading it.
+
+### Fixed
+- **The inherited-`*` question could disappear without a trace.** It was an information message, and
+  VS Code swallows those while "Do Not Disturb" is on — warnings still get through. A question that
+  asks for a decision must not sit on the one level that can vanish, or the extension keeps writing
+  into build folders exactly as before, which is what the question exists to prevent. It is a
+  warning now.
+- Notifications no longer repeat the extension name. VS Code prefixes every notification with
+  "Minify4U:" by itself, so "Minify4U is switched off here" read as "Minify4U: Minify4U is switched
+  off here", and the error message even managed "Minify4U: Minify4U: …".
+- **German grammar: "geerbt aus deine Benutzer-Einstellungen".** The origin of a value appears in
+  sentences that need different cases — "gesetzt durch" (accusative) and "geerbt aus" (dative) — and
+  one text fragment cannot be both. English never shows this because it has no cases. The sentences
+  are now uniformly dative ("set in" rather than "set by"), so a single form fits everywhere.
+
 ## [0.8.2] – 2026-09-11
 
 ### Documentation

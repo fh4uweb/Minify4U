@@ -472,7 +472,7 @@ async function minifyCurrentFile(target?: vscode.Uri): Promise<void> {
       void tell(
         "warn",
         vscode.l10n.t(
-          "Minify4U is switched off here — minify4u.enable = false, set by {0}.",
+          "Switched off here — minify4u.enable = false, set in {0}.",
           originOf(config, "enable")
         )
       );
@@ -609,7 +609,7 @@ function warnDisabledOnce(
   void tell(
     "warn",
     vscode.l10n.t(
-      'Nothing was written in "{0}" — minify4u.enable = false, set by {1}.',
+      'Nothing was written in "{0}" — minify4u.enable = false, set in {1}.',
       folder.name,
       originOf(config, "enable")
     )
@@ -687,9 +687,15 @@ async function offerExplicitOutput(
   const choose = vscode.l10n.t("Choose folder…");
   const off = vscode.l10n.t("Don't minify here");
 
-  const pick = await vscode.window.showInformationMessage(
+  // A warning, not an information — and the difference is not cosmetic: with
+  // "Do Not Disturb" on, VS Code silently swallows information messages while
+  // warnings still get through. A question that asks for a decision must not be
+  // the one notification level that can disappear, or the extension goes on
+  // writing into build folders exactly as before. Found by testing: the message
+  // arrived, but only inside the notification centre where nobody looks.
+  const pick = await vscode.window.showWarningMessage(
     vscode.l10n.t(
-      'Minify4U put {0} next to its source, in "{1}" — minify4u.{2} is "*", inherited from {3}.',
+      '{0} was written next to its source, in "{1}" — minify4u.{2} is "*", inherited from {3}.',
       written.rel.split(/[\\/]/).pop() ?? "",
       dir,
       written.setting,
@@ -898,7 +904,9 @@ async function buildDocument(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     output.appendLine(`✗ ${path.basename(doc.fileName)}: ${msg}`);
-    void vscode.window.showErrorMessage(vscode.l10n.t("Minify4U: {0}", msg));
+    // No "Minify4U:" prefix here — VS Code puts the extension name in front of
+    // every notification itself, and a text that repeats it reads as a stutter.
+    void vscode.window.showErrorMessage(msg);
     return { kind: "error", message: msg };
   }
 }
@@ -1052,7 +1060,7 @@ function noRuleReason(
   return originKind(config, setting) === "default"
     ? vscode.l10n.t("minify4u.{0} is not set anywhere", setting)
     : vscode.l10n.t(
-        "minify4u.{0} is empty, set by {1}",
+        "minify4u.{0} is empty, set in {1}",
         setting,
         originOf(config, setting)
       );
